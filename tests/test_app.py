@@ -37,9 +37,26 @@ def test_boots_with_no_environment_and_no_network(
     assert app.config["MASSINGBILL_STORAGE_BACKEND"] == "local"
     assert app.config["SECRET_KEY"]  # ephemeral key minted for development
 
-    response = app.test_client().get("/healthz")
-    assert response.status_code == 200
-    assert response.get_json()["status"] == "ok"
+    client = app.test_client()
+    assert client.get("/healthz").get_json()["status"] == "ok"
+
+    # Readiness too: a fresh clone must reach its own database, not a path
+    # Flask-SQLAlchemy re-resolved somewhere else.
+    ready = client.get("/readyz")
+    assert ready.status_code == 200, ready.get_json()
+    assert ready.get_json()["checks"]["database"] == "ok"
+
+
+def test_the_default_sqlite_url_is_absolute(tmp_path: Path) -> None:
+    """Regression: a relative SQLite URL is re-resolved against Flask's own
+    instance folder, which points at a directory that does not exist -- the
+    application boots but every database read fails.
+    """
+    settings = Settings(env="testing", secret_key="x" * 32, instance_path=tmp_path / "inst")
+
+    assert settings.database_url.startswith("sqlite:///")
+    assert settings.instance_path.is_absolute()
+    assert Path(settings.database_url.removeprefix("sqlite:///")).is_absolute()
 
 
 def test_healthz_reports_version(client: FlaskClient) -> None:

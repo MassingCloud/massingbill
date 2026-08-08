@@ -89,6 +89,14 @@ class Settings(BaseSettings):
                 )
             object.__setattr__(self, "secret_key", secrets.token_urlsafe(48))
 
+        # Resolve the instance path once, here. Flask-SQLAlchemy re-interprets a
+        # *relative* SQLite path against Flask's own instance folder, which for
+        # an installed package is somewhere else entirely -- so a relative URL
+        # silently points at a directory that does not exist and every request
+        # to /readyz fails with "unable to open database file". Absolute from
+        # the start removes the ambiguity.
+        object.__setattr__(self, "instance_path", self.instance_path.expanduser().resolve())
+
         if not self.database_url:
             path = self.instance_path / "massingbill.sqlite3"
             object.__setattr__(self, "database_url", f"sqlite:///{path.as_posix()}")
