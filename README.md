@@ -56,9 +56,10 @@ tie-out rule set; the G702/G703 layout is one of several renderers over it.
 
 ## Status
 
-**Phase P0 (foundation) is complete.** The application factory, configuration,
-adapter seams, security posture, container and CI are in place and green. The
-billing engine itself lands in P1–P4.
+**Phases P0 (foundation) and P1 (money kernel) are complete.** The application
+factory, adapter seams, security posture, container and CI are in place, and the
+arithmetic every pay application rests on is written and exhaustively tested.
+The domain model lands in P2–P4.
 
 See [`SPEC.md`](SPEC.md) for the full plan: research, data model, the money
 kernel, the tie-out rule reference, the testing strategy and the phase-by-phase
@@ -67,8 +68,8 @@ acceptance criteria.
 | Phase | Scope | State |
 |---|---|---|
 | P0 | Foundation, adapters, CI, container | **done** |
-| P1 | Money kernel | next |
-| P2 | Orgs, RBAC, projects, schedule of values | |
+| P1 | Money kernel | **done** |
+| P2 | Orgs, RBAC, projects, schedule of values | next |
 | P3 | The requisition engine (G702/G703, retainage, change orders) | |
 | P4 | Tie-out rule engine | |
 | P5 | PDF / XLSX / CSV / JSON documents | |

@@ -51,7 +51,9 @@ jobs:
       - name: Run tests
         # The floor rises with each phase; the money engine, retainage, the
         # period engine and the tie-out rules carry a 100% requirement of their
-        # own from P1 onward (SPEC.md 7).
+        # own, enforced by the `money-kernel` job below (SPEC.md 7).
+        env:
+          HYPOTHESIS_PROFILE: ci
         run: pytest -q --cov=massingbill --cov-report=xml --cov-report=term-missing --cov-fail-under=90
       - uses: actions/upload-artifact@v4
         if: matrix.python-version == '3.12'
@@ -60,12 +62,13 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
-  money-discipline:
-    name: Money discipline
+  money-kernel:
+    name: Money kernel
     runs-on: ubuntu-latest
-    # SPEC.md 5: monetary values are integer cents and scaling arithmetic lives
-    # only in the money kernel. A stray `line_total * rate` in a view helper is
-    # exactly how a pay app ends up a penny off and gets rejected.
+    # SPEC.md 5 and 7. Monetary values are integer cents, scaling arithmetic
+    # lives only in the kernel, and the kernel is covered exhaustively. A stray
+    # `line_total * rate` in a view helper is exactly how a pay app ends up a
+    # penny off and gets rejected.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -73,6 +76,18 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install ".[dev]"
+
+      - name: The kernel must be covered completely
+        run: |
+          pytest -q tests/test_money.py tests/test_money_properties.py \
+            --cov=massingbill.services.money --cov-report=term-missing \
+            --cov-fail-under=100
+
+      - name: Widen the property search
+        env:
+          HYPOTHESIS_PROFILE: thorough
+        run: pytest -q tests/test_money_properties.py
+
       - run: python scripts/check_money_discipline.py
       - name: The gate must reject a planted violation
         run: |

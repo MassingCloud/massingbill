@@ -11,6 +11,7 @@ Two rules the whole suite depends on:
 
 from __future__ import annotations
 
+import os
 import socket
 from collections.abc import Iterator
 from pathlib import Path
@@ -18,10 +19,22 @@ from pathlib import Path
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
+from hypothesis import HealthCheck
+from hypothesis import settings as hypothesis_settings
 
 from massingbill import create_app
 from massingbill.config import Settings
 from massingbill.extensions import db
+
+# Hypothesis profiles. `dev` keeps the local loop fast; CI runs `ci` for a
+# wider search. The socket guard below is function-scoped, which hypothesis
+# flags as a health check on a function it re-enters many times -- it is
+# deliberate, so it is suppressed rather than worked around.
+_COMMON = {"suppress_health_check": [HealthCheck.function_scoped_fixture], "deadline": None}
+hypothesis_settings.register_profile("dev", max_examples=200, **_COMMON)  # type: ignore[arg-type]
+hypothesis_settings.register_profile("ci", max_examples=1_000, **_COMMON)  # type: ignore[arg-type]
+hypothesis_settings.register_profile("thorough", max_examples=10_000, **_COMMON)  # type: ignore[arg-type]
+hypothesis_settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
 
 
 class NetworkBlockedError(RuntimeError):
