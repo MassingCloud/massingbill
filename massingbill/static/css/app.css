@@ -1,0 +1,110 @@
+/* Massing Bill shell styles.
+   Self-hosted only -- no external font, no CDN. The strict default-src 'self'
+   CSP in security.py depends on that staying true. */
+
+:root {
+  --ink: #0e1a2b;
+  --paper: #ffffff;
+  --muted: #5b6b7f;
+  --line: #dde3ea;
+  --accent: #1f6feb;
+  --surface: #f6f8fa;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e6edf3;
+    --paper: #0d1117;
+    --muted: #9aa7b4;
+    --line: #263140;
+    --accent: #58a6ff;
+    --surface: #161b22;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.masthead {
+  border-bottom: 1px solid var(--line);
+  padding: 1rem 1.5rem;
+}
+
+.wordmark {
+  color: var(--ink);
+  font-size: 1.1rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.wordmark strong { font-weight: 700; }
+
+.shell {
+  margin: 0 auto;
+  max-width: 46rem;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+h1 {
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+}
+
+h2 {
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  margin: 2.5rem 0 0.75rem;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lede { color: var(--muted); font-size: 1.05rem; margin: 0 0 1rem; }
+
+.status {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.status h2 { margin-top: 0; }
+
+dl {
+  display: grid;
+  gap: 0.35rem 1rem;
+  grid-template-columns: max-content 1fr;
+  margin: 0;
+}
+
+dt { color: var(--muted); }
+dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.note { color: var(--muted); font-size: 0.9rem; margin: 1rem 0 0; }
+
+code {
+  background: var(--surface);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+}
+
+a { color: var(--accent); }
+
+.footer {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 3rem;
+  padding: 1.5rem;
+}
+
+.footer p { margin: 0 auto; max-width: 46rem; }

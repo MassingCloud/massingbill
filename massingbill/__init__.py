@@ -1,0 +1,94 @@
+"""Massing Bill -- standalone AIA-style GC billing engine.
+
+The application factory. Its contract, and the P0 acceptance criterion:
+
+    A fresh clone with **no environment file and no network** boots, serves
+    ``/healthz``, and selects the standalone entitlement provider and local
+    storage. Nothing optional is imported unless an operator asks for it.
+
+See SPEC.md sections 2 and 3.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from flask import Flask
+
+__version__ = "0.1.0"
+
+__all__ = ["__version__", "create_app"]
+
+
+def create_app(settings: Any = None, **overrides: Any) -> Flask:
+    """Build a configured application.
+
+    Args:
+        settings: A prepared ``Settings`` instance. Tests pass one directly so
+            they never depend on the ambient environment.
+        **overrides: Field overrides applied when ``settings`` is not given.
+    """
+    from massingbill.blueprints import register_blueprints
+    from massingbill.config import Settings, load_settings
+    from massingbill.errors import register_error_handlers
+    from massingbill.extensions import csrf, db, limiter, login_manager, migrate
+    from massingbill.logging_config import configure_logging
+    from massingbill.security import register_security_headers
+    from massingbill.services.entitlement import get_provider as get_entitlement_provider
+    from massingbill.services.storage import get_backend as get_storage_backend
+
+    config: Settings = settings if settings is not None else load_settings(**overrides)
+
+    app = Flask(__name__, instance_relative_config=False)
+    app.config.update(config.flask_config())
+    app.config["MASSINGBILL_VERSION"] = __version__
+    app.config["MASSINGBILL_ENTITLEMENT_PROVIDER"] = config.entitlement_provider
+    app.config["MASSINGBILL_STORAGE_BACKEND"] = config.storage_backend
+    app.config["MASSINGBILL_SETTINGS"] = config
+
+    configure_logging(app, level=config.log_level, as_json=config.log_json)
+
+    config.instance_path.mkdir(parents=True, exist_ok=True)
+
+    db.init_app(app)
+    migrate.init_app(app, db)
+    csrf.init_app(app)
+    login_manager.init_app(app)
+    login_manager.login_view = "auth.login"
+    login_manager.session_protection = "strong"
+
+    @login_manager.user_loader
+    def _load_user(user_id: str) -> None:
+        # P0 has no User table yet. Flask-Login's template context processor
+        # calls this on every render, so it must exist from the first commit;
+        # P2 replaces the body with a real lookup.
+        return None
+
+    limiter.init_app(app)
+
+    # Import for metadata registration; Alembic autogenerate needs every mapped
+    # class present before it compares against the database.
+    import massingbill.models  # noqa: F401
+
+    # Resolve the adapters once, at boot. In a standalone install this touches
+    # no network and imports no optional dependency.
+    app.extensions["massingbill_entitlement"] = get_entitlement_provider(
+        config.entitlement_provider
+    )
+    app.extensions["massingbill_storage"] = get_storage_backend(
+        config.storage_backend,
+        **({"root": config.instance_path / "storage"} if config.storage_backend == "local" else {}),
+    )
+
+    register_security_headers(app)
+    register_error_handlers(app)
+    register_blueprints(app)
+
+    app.logger.info(
+        "massingbill %s ready (entitlement=%s storage=%s env=%s)",
+        __version__,
+        config.entitlement_provider,
+        config.storage_backend,
+        config.env,
+    )
+    return app

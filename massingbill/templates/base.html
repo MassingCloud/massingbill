@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Massing Bill{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+  <header class="masthead">
+    <a class="wordmark" href="{{ url_for('main.index') }}">Massing<strong>Bill</strong></a>
+  </header>
+  <main class="shell">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    <p>
+      Massing Bill {{ config['MASSINGBILL_VERSION'] }} &middot; MIT licensed.
+      Document formats follow the AIA G702/G703 line structure. Massing Bill is not
+      affiliated with, endorsed by, or sponsored by The American Institute of Architects.
+      AIA&reg;, G702&reg; and G703&reg; are registered trademarks of the AIA.
+    </p>
+  </footer>
+</body>
+</html>

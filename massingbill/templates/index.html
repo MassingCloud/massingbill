@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Massing Bill{% endblock %}
+
+{% block content %}
+<h1>Massing Bill</h1>
+<p class="lede">
+  The monthly requisition &mdash; schedule of values, G702/G703-format applications,
+  change orders, retainage, stored materials and lien waivers &mdash; in one auditable
+  engine you can run yourself.
+</p>
+
+<section class="status" aria-label="Runtime configuration">
+  <h2>Runtime</h2>
+  <dl>
+    <dt>Version</dt><dd>{{ version }}</dd>
+    <dt>Entitlement provider</dt><dd>{{ entitlement_provider }}</dd>
+    <dt>Storage backend</dt><dd>{{ storage_backend }}</dd>
+  </dl>
+  {% if entitlement_provider == 'standalone' %}
+  <p class="note">
+    Running standalone: no licence check, no phone-home, no external dependency.
+  </p>
+  {% endif %}
+</section>
+
+<section aria-label="Build status">
+  <h2>Build status</h2>
+  <p>
+    Phase&nbsp;P0 (foundation) is complete. The billing engine lands in
+    P1&ndash;P4; see <code>SPEC.md</code> for the phase plan and acceptance criteria.
+  </p>
+</section>
+{% endblock %}

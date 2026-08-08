@@ -1,0 +1,231 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - name: ruff check
+        run: ruff check --output-format=github .
+      - name: ruff format
+        run: ruff format --check .
+      - name: mypy
+        # Blocking, not advisory. A type check nobody has to fix is one nobody reads.
+        run: mypy massingbill
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install ".[dev]"
+      - name: Run tests
+        # The floor rises with each phase; the money engine, retainage, the
+        # period engine and the tie-out rules carry a 100% requirement of their
+        # own from P1 onward (SPEC.md 7).
+        run: pytest -q --cov=massingbill --cov-report=xml --cov-report=term-missing --cov-fail-under=90
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.12'
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: warn
+
+  money-discipline:
+    name: Money discipline
+    runs-on: ubuntu-latest
+    # SPEC.md 5: monetary values are integer cents and scaling arithmetic lives
+    # only in the money kernel. A stray `line_total * rate` in a view helper is
+    # exactly how a pay app ends up a penny off and gets rejected.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - run: python scripts/check_money_discipline.py
+      - name: The gate must reject a planted violation
+        run: |
+          cat > massingbill/_ci_violation.py <<'PY'
+          def bad(scheduled_value_cents: int, rate: int) -> int:
+              return scheduled_value_cents * rate
+          PY
+          if python scripts/check_money_discipline.py; then
+            echo "money-discipline gate failed to catch a planted violation" >&2
+            rm -f massingbill/_ci_violation.py
+            exit 1
+          fi
+          rm -f massingbill/_ci_violation.py
+          echo "gate correctly rejected the planted violation"
+
+  offline:
+    name: Offline (no network)
+    runs-on: ubuntu-latest
+    # The standalone promise, gate 1 of 3 (SPEC.md 3, 13). The suite already
+    # blocks sockets in conftest; this job proves the *installed* package needs
+    # nothing at import time either, with the network genuinely unavailable.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - name: Import the whole package with outbound traffic dropped
+        run: |
+          sudo iptables -I OUTPUT -m owner --uid-owner "$(id -u)" -d 0.0.0.0/0 -j REJECT
+          sudo iptables -I OUTPUT -m owner --uid-owner "$(id -u)" -d 127.0.0.0/8 -j ACCEPT
+          python -c "
+          import importlib, pkgutil, massingbill
+          for m in pkgutil.walk_packages(massingbill.__path__, 'massingbill.'):
+              if 'integrations' in m.name: continue
+              importlib.import_module(m.name)
+          from massingbill import create_app
+          app = create_app()
+          assert app.test_client().get('/healthz').status_code == 200
+          print('booted and served /healthz with no network')
+          "
+          sudo iptables -D OUTPUT -m owner --uid-owner "$(id -u)" -d 0.0.0.0/0 -j REJECT
+
+  no-adapters:
+    name: No adapters (delete and re-run)
+    runs-on: ubuntu-latest
+    # The standalone promise, gate 2 of 3. If the core has quietly grown a
+    # dependency on an optional adapter, this fails.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - name: Remove every optional adapter and integration
+        run: |
+          rm -f massingbill/services/entitlement/massing_cloud.py
+          rm -f massingbill/services/identity/oidc.py
+          rm -f massingbill/services/storage/s3.py
+          rm -f massingbill/services/storage/massing_vault.py
+          rm -rf massingbill/services/integrations/*
+          touch massingbill/services/integrations/__init__.py
+      - name: The suite must still be green
+        run: pytest -q
+
+  imports:
+    name: Import contracts
+    runs-on: ubuntu-latest
+    # The standalone promise, gate 3 of 3. Coupling becomes a build failure
+    # rather than a code-review opinion.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - run: lint-imports
+
+  migrations:
+    name: Migrations (up, down, up)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - name: Round-trip the schema
+        env:
+          FLASK_APP: wsgi:app
+          MASSINGBILL_ENV: development
+          MASSINGBILL_DATABASE_URL: sqlite:///ci-migrations.sqlite3
+        run: |
+          flask db upgrade
+          flask db downgrade base
+          flask db upgrade
+      - name: Fail if a model change has no migration
+        env:
+          FLASK_APP: wsgi:app
+          MASSINGBILL_ENV: development
+          MASSINGBILL_DATABASE_URL: sqlite:///ci-migrations.sqlite3
+        run: |
+          flask db check
+
+  security:
+    name: Dependency audit and SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]" pip-audit cyclonedx-bom
+      - name: Audit dependencies
+        run: pip-audit --strict --progress-spinner off
+      - name: Generate SBOM
+        run: cyclonedx-py environment -o sbom.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          if-no-files-found: warn
+
+  docker:
+    name: Container builds and serves
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          load: true
+          tags: massingbill:ci
+      - name: Boot it on SQLite and probe both endpoints
+        run: |
+          docker run -d --name massingbill-ci -p 8000:8000 \
+            -e MASSINGBILL_SECRET_KEY=ci-only-secret-key-value \
+            -e MASSINGBILL_SESSION_COOKIE_SECURE=false \
+            massingbill:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8000/healthz
+          curl -fsS http://127.0.0.1:8000/readyz
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs massingbill-ci || true

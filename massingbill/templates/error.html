@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} &middot; Massing Bill{% endblock %}
+
+{% block content %}
+<h1>{{ code }}</h1>
+<p class="lede">{{ message or "Something went wrong." }}</p>
+<p><a href="{{ url_for('main.index') }}">Back to the start</a></p>
+{% endblock %}

@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
+*.sqlite3 binary
+
+# Keep generated artefacts out of diffs and language stats.
+migrations/versions/*.py linguist-generated=false

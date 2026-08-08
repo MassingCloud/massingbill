@@ -1,0 +1,52 @@
+# Massing Bill -- local stack.
+#
+#     docker compose up
+#
+# That is the whole install. No account, no licence key, no external service.
+# Postgres is included because it is what production uses; delete the `db`
+# service and drop MASSINGBILL_DATABASE_URL to run on SQLite instead.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: ghcr.io/massingcloud/massingbill:dev
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MASSINGBILL_ENV: production
+      # Development-only placeholder. Replace before exposing this anywhere:
+      #   docker compose run --rm app massingbill gen-secret
+      MASSINGBILL_SECRET_KEY: ${MASSINGBILL_SECRET_KEY:-dev-only-change-me-before-deploying}
+      MASSINGBILL_DATABASE_URL: postgresql+psycopg://massingbill:massingbill@db:5432/massingbill
+      MASSINGBILL_INSTANCE_PATH: /data
+      # Standalone defaults, stated explicitly so an operator can see them.
+      MASSINGBILL_ENTITLEMENT_PROVIDER: standalone
+      MASSINGBILL_STORAGE_BACKEND: local
+      MASSINGBILL_SESSION_COOKIE_SECURE: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - massingbill_data:/data
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: massingbill
+      POSTGRES_PASSWORD: massingbill
+      POSTGRES_DB: massingbill
+    volumes:
+      - massingbill_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U massingbill -d massingbill"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  massingbill_data:
+  massingbill_db:

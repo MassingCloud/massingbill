@@ -1,0 +1,15 @@
+# Default owner for everything in this repository.
+*                               @MassingCloud/maintainers
+
+# The money engine and the tie-out rules decide whether a pay app is correct.
+# They get a named reviewer regardless of who else has approved.
+/massingbill/services/money.py       @MassingCloud/maintainers
+/massingbill/services/retainage.py   @MassingCloud/maintainers
+/massingbill/services/application.py @MassingCloud/maintainers
+/massingbill/services/tieout.py      @MassingCloud/maintainers
+/massingbill/models/base.py          @MassingCloud/maintainers
+
+# Legal-sensitive: AIA form policy and statutory waiver text.
+/docs/legal-forms-policy.md          @MassingCloud/maintainers
+/massingbill/data/seed/waivers/      @MassingCloud/maintainers
+/massingbill/data/seed/retainage_rules/ @MassingCloud/maintainers

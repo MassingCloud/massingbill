@@ -1,0 +1,213 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "massingbill"
+version = "0.1.0"
+description = "Standalone AIA-style GC billing engine: G702/G703, schedule of values, change orders, retainage, lien waivers and the monthly requisition."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "MassingCloud" }]
+keywords = [
+    "construction",
+    "billing",
+    "aia",
+    "g702",
+    "g703",
+    "schedule of values",
+    "retainage",
+    "pay application",
+    "lien waiver",
+    "flask",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Flask",
+    "Intended Audience :: Other Audience",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Accounting",
+]
+
+# The standalone core. Nothing here reaches the network at import time or at
+# runtime; optional adapters (S3, OIDC, massing.cloud) live in extras so a
+# self-hoster installs exactly what they run. See SPEC.md section 3.
+dependencies = [
+    "Flask>=3.0,<4.0",
+    "Flask-SQLAlchemy>=3.1,<4.0",
+    "Flask-Migrate>=4.0,<5.0",
+    "Flask-Login>=0.6.3,<0.7",
+    "Flask-WTF>=1.2,<2.0",
+    "Flask-Limiter>=3.5,<5.0",
+    "WTForms>=3.1,<4.0",
+    "SQLAlchemy>=2.0,<3.0",
+    "alembic>=1.13",
+    "argon2-cffi>=23.1",
+    "pydantic>=2.6,<3.0",
+    "pydantic-settings>=2.2,<3.0",
+    "python-dotenv>=1.0",
+    "PyYAML>=6.0",
+    "email-validator>=2.1",
+    "python-slugify>=8.0",
+    "bleach>=6.1",
+    "cryptography>=42.0",
+    # TOTP two-factor. segno renders the enrolment QR as an inline SVG, which
+    # keeps the strict default-src 'self' CSP intact -- no image host, no
+    # third-party chart API, and nothing written to disk.
+    "pyotp>=2.9",
+    "segno>=1.6",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+server = ["gunicorn>=21.2"]
+# Document rendering. Split out because WeasyPrint needs a native stack
+# (pango/cairo) that a headless API-only deployment does not.
+render = ["WeasyPrint>=61.0", "openpyxl>=3.1"]
+# Optional adapters (SPEC.md 3.2). The core must import and test without these.
+oidc = ["Authlib>=1.3,<2.0", "requests>=2.31"]
+s3 = ["boto3>=1.34"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "ruff>=0.6",
+    "mypy>=1.9",
+    "hypothesis>=6.100",
+    "freezegun>=1.4",
+    "responses>=0.25",
+    "import-linter>=2.0",
+    "types-PyYAML",
+    "types-requests",
+    "types-bleach",
+]
+
+[project.urls]
+Homepage = "https://github.com/MassingCloud/massingbill"
+Repository = "https://github.com/MassingCloud/massingbill"
+Issues = "https://github.com/MassingCloud/massingbill/issues"
+
+[project.scripts]
+massingbill = "massingbill.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["massingbill*"]
+
+[tool.setuptools.package-data]
+massingbill = ["templates/**/*", "static/**/*", "data/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "pdf: tests that require the WeasyPrint native stack (GTK/Pango/cairo)",
+    "adapter: tests that exercise an optional adapter (SPEC.md 3.2)",
+]
+
+[tool.coverage.run]
+source = ["massingbill"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["migrations", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF", "BLE", "S"]
+ignore = [
+    "B008",   # Flask/WTForms idiomatically call in argument defaults
+    "RUF012", # SQLAlchemy declarative attrs are not ClassVar
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert (that is the point) and use obviously-fake credentials.
+"tests/**" = ["S101", "S105", "S106", "S311"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+strict_equality = true
+plugins = []
+
+[[tool.mypy.overrides]]
+module = [
+    "flask_limiter.*",
+    "flask_login.*",
+    "flask_migrate.*",
+    "flask_wtf.*",
+]
+ignore_missing_imports = true
+
+# The optional adapters do not exist yet -- they ship in P9/P10, and the lazy
+# imports that reference them are guarded by ImportError handlers on purpose
+# (SPEC.md 3.2). Their absence is the design, not a missing file.
+[[tool.mypy.overrides]]
+module = [
+    "massingbill.services.entitlement.massing_cloud",
+    "massingbill.services.identity.oidc",
+    "massingbill.services.storage.s3",
+    "massingbill.services.storage.massing_vault",
+]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# Standalone integrity (SPEC.md 3, 7.4, 13).
+#
+# The core must never import an optional adapter. These contracts turn that
+# from a code-review opinion into a build failure. The `no-adapters` CI job
+# deletes the adapter modules and re-runs the suite as the second proof.
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "massingbill"
+
+[[tool.importlinter.contracts]]
+name = "Core never imports optional adapters"
+type = "forbidden"
+source_modules = [
+    "massingbill.blueprints",
+    "massingbill.models",
+    "massingbill.security",
+    "massingbill.config",
+]
+forbidden_modules = [
+    "massingbill.services.entitlement.massing_cloud",
+    "massingbill.services.identity.oidc",
+    "massingbill.services.storage.s3",
+    "massingbill.services.storage.massing_vault",
+    "massingbill.services.integrations",
+]
+
+[[tool.importlinter.contracts]]
+name = "Adapter bases never import their implementations"
+type = "forbidden"
+source_modules = [
+    "massingbill.services.entitlement.base",
+    "massingbill.services.identity.base",
+    "massingbill.services.storage.base",
+]
+forbidden_modules = [
+    "massingbill.services.entitlement.standalone",
+    "massingbill.services.entitlement.massing_cloud",
+    "massingbill.services.identity.local",
+    "massingbill.services.identity.oidc",
+    "massingbill.services.storage.local",
+    "massingbill.services.storage.s3",
+    "massingbill.services.storage.massing_vault",
+]
