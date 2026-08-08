@@ -44,6 +44,17 @@ SOV_LINE_UPDATED = "sov.line_updated"
 SOV_LINE_REMOVED = "sov.line_removed"
 SOV_APPROVED = "sov.approved"
 SOV_REVISED = "sov.revised"
+APPLICATION_OPENED = "application.opened"
+APPLICATION_UPDATED = "application.updated"
+APPLICATION_SUBMITTED = "application.submitted"
+APPLICATION_CERTIFIED = "application.certified"
+APPLICATION_VOIDED = "application.voided"
+APPLICATION_PAID = "application.paid"
+CO_CREATED = "change_order.created"
+CO_APPROVED = "change_order.approved"
+CO_VOIDED = "change_order.voided"
+STORED_ADDED = "stored_material.added"
+STORED_INSTALLED = "stored_material.installed"
 
 
 def _encode(value: dict[str, Any] | None) -> str:

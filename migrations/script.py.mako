@@ -7,6 +7,11 @@ Create Date: ${create_date}
 """
 from alembic import op
 import sqlalchemy as sa
+
+# Custom column types live here. Autogenerate renders them fully qualified
+# (massingbill.models.base.UtcDateTime), so the module must be importable or
+# every generated migration fails with NameError on first run.
+import massingbill.models.base  # noqa: F401
 ${imports if imports else ""}
 
 # revision identifiers, used by Alembic.

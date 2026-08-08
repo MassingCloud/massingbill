@@ -6,6 +6,15 @@ sees the full metadata and SQLAlchemy can resolve every string annotation.
 
 from __future__ import annotations
 
+from .application import (
+    EDITABLE_STATUSES,
+    ISSUED_STATUSES,
+    Application,
+    ApplicationLine,
+    ApplicationSnapshot,
+    ApplicationStatus,
+    Certification,
+)
 from .audit import GENESIS_HASH, AuditEvent
 from .base import (
     Base,
@@ -16,6 +25,14 @@ from .base import (
     money_column,
     new_uuid,
     utcnow,
+)
+from .change import (
+    ChangeOrder,
+    ChangeOrderLine,
+    ChangeOrderStatus,
+    ChangeOrderType,
+    PcoStatus,
+    PotentialChangeOrder,
 )
 from .organization import (
     INTERNAL_ROLES,
@@ -37,14 +54,26 @@ from .project import (
     RetainageRule,
 )
 from .sov import CostCode, ScheduleOfValues, SovLine, SovStatus
+from .stored import StorageLocation, StoredMaterial
 from .user import User
 
 __all__ = [
+    "EDITABLE_STATUSES",
     "GENESIS_HASH",
     "INTERNAL_ROLES",
+    "ISSUED_STATUSES",
     "ROLE_LABELS",
+    "Application",
+    "ApplicationLine",
+    "ApplicationSnapshot",
+    "ApplicationStatus",
     "AuditEvent",
     "Base",
+    "Certification",
+    "ChangeOrder",
+    "ChangeOrderLine",
+    "ChangeOrderStatus",
+    "ChangeOrderType",
     "ContractParty",
     "CostCode",
     "FormStyle",
@@ -52,7 +81,9 @@ __all__ = [
     "Membership",
     "Organization",
     "PartyRole",
+    "PcoStatus",
     "PeriodConvention",
+    "PotentialChangeOrder",
     "PrimeContract",
     "Project",
     "ProjectStatus",
@@ -63,6 +94,8 @@ __all__ = [
     "SoftDeleteMixin",
     "SovLine",
     "SovStatus",
+    "StorageLocation",
+    "StoredMaterial",
     "TimestampMixin",
     "User",
     "UuidPrimaryKeyMixin",

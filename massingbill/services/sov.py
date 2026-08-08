@@ -238,9 +238,8 @@ def approve(schedule: ScheduleOfValues, *, actor: User) -> ScheduleOfValues:
     if not schedule.lines:
         raise ValidationError("A schedule of values needs at least one line before approval.")
 
-    contract = schedule.prime_contract
     total = schedule.total_scheduled_value_cents
-    expected = contract.original_contract_sum_cents
+    expected = contract_sum_to_date(schedule)
 
     if total != expected:
         difference = total - expected
@@ -340,10 +339,32 @@ def get_line(schedule: ScheduleOfValues, line_id: str) -> SovLine:
     return line
 
 
+def contract_sum_to_date(schedule: ScheduleOfValues) -> int:
+    """G702 line 3: the original contract sum plus approved change orders.
+
+    The schedule must tie to *this*, not to line 1. Comparing against the
+    original sum would make it impossible to ever approve a revision once a
+    change order had landed -- the schedule would be permanently "out of
+    balance" by exactly the change order.
+    """
+    from massingbill.models import ChangeOrder, ChangeOrderStatus
+
+    net_change = (
+        db.session.scalar(
+            select(func.coalesce(func.sum(ChangeOrder.amount_cents), 0)).where(
+                ChangeOrder.prime_contract_id == schedule.prime_contract_id,
+                ChangeOrder.status == ChangeOrderStatus.APPROVED,
+            )
+        )
+        or 0
+    )
+    return schedule.prime_contract.original_contract_sum_cents + int(net_change)
+
+
 def reconciliation(schedule: ScheduleOfValues) -> dict[str, int]:
-    """How far the schedule is from the contract sum, in cents."""
+    """How far the schedule is from the contract sum to date, in cents."""
     total = schedule.total_scheduled_value_cents
-    expected = schedule.prime_contract.original_contract_sum_cents
+    expected = contract_sum_to_date(schedule)
     return {
         "lines_total_cents": total,
         "contract_sum_cents": expected,
