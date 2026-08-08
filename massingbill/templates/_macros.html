@@ -1,0 +1,15 @@
+{% macro field(f, extra_class="") %}
+<div class="field {{ extra_class }}">
+  {{ f.label }}
+  {{ f(class="input") }}
+  {% if f.description %}<p class="hint">{{ f.description }}</p>{% endif %}
+  {% for error in f.errors %}<p class="error">{{ error }}</p>{% endfor %}
+</div>
+{% endmacro %}
+
+{% macro checkbox(f) %}
+<div class="field field-check">
+  <label>{{ f() }} {{ f.label.text }}</label>
+  {% for error in f.errors %}<p class="error">{{ error }}</p>{% endfor %}
+</div>
+{% endmacro %}

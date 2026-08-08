@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Audit log &middot; Massing Bill{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+
+<p class="{% if verdict.ok %}ok{% else %}error{% endif %}">{{ verdict.describe() }}</p>
+<p class="hint">
+  Each event is hashed together with the one before it, so removing or altering
+  any entry breaks the chain from that point forward. Verify from the command
+  line with <code>massingbill audit verify</code>.
+</p>
+
+<table class="grid">
+  <thead>
+    <tr><th class="num">#</th><th>When</th><th>Who</th><th>Action</th><th>Entity</th></tr>
+  </thead>
+  <tbody>
+  {% for e in events %}
+    <tr>
+      <td class="num">{{ e.sequence }}</td>
+      <td>{{ e.at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td>{{ e.actor_label or "—" }}</td>
+      <td><code>{{ e.action }}</code></td>
+      <td>{{ e.entity_type }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

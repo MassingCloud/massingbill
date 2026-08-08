@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% from "_macros.html" import field, checkbox %}
+{% block title %}{{ "Edit project" if project else "New project" }} &middot; Massing Bill{% endblock %}
+{% block content %}
+<h1>{{ "Edit project" if project else "New project" }}</h1>
+<form method="post" class="stack"
+      action="{{ url_for('projects.update', project_id=project.id) if project else url_for('projects.create') }}">
+  {{ form.hidden_tag() }}
+  {{ field(form.number) }}
+  {{ field(form.name) }}
+  {{ field(form.address) }}
+  {{ field(form.jurisdiction_state) }}
+  {{ checkbox(form.is_public_work) }}
+  {{ checkbox(form.is_residential) }}
+  {{ field(form.stories) }}
+  {{ form.submit(class="button") }}
+</form>
+{% endblock %}

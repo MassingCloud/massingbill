@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ project.number }} &middot; Massing Bill{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ project.number }} &mdash; {{ project.name }}</h1>
+  {% if can_edit %}<a class="button button-quiet" href="{{ url_for('projects.edit', project_id=project.id) }}">Edit</a>{% endif %}
+</div>
+
+<dl class="facts">
+  <dt>State</dt><dd>{{ project.jurisdiction_state or "—" }}</dd>
+  <dt>Status</dt><dd>{{ project.status }}</dd>
+  <dt>Public work</dt><dd>{{ "Yes" if project.is_public_work else "No" }}</dd>
+</dl>
+
+<h2>Prime contract</h2>
+{% if contract %}
+  <dl class="facts">
+    <dt>Original contract sum</dt><dd class="num">{{ contract.original_contract_sum_cents | money }}</dd>
+    {% if contract.retainage_rule %}
+    <dt>Retainage &mdash; work</dt><dd>{{ contract.retainage_rule.rate_work_bp | pct }}</dd>
+    <dt>Retainage &mdash; stored</dt><dd>{{ contract.retainage_rule.rate_stored_bp | pct }}</dd>
+    {% endif %}
+  </dl>
+  {% if can_edit %}<a class="button button-quiet" href="{{ url_for('projects.contract_form', project_id=project.id) }}">Edit contract</a>{% endif %}
+
+  <h2>Schedule of values</h2>
+  {% if schedule %}
+    <p>Revision {{ schedule.revision }} &middot; {{ schedule.status }} &middot; {{ schedule.lines|length }} line(s)</p>
+    {% if reconciliation and reconciliation.difference_cents != 0 %}
+      <p class="error">Out of balance by {{ reconciliation.difference_cents | money }} against the contract sum.</p>
+    {% endif %}
+    <a class="button" href="{{ url_for('sov.show', project_id=project.id) }}">Open schedule</a>
+  {% else %}
+    <p class="lede">No schedule of values yet.</p>
+    <a class="button" href="{{ url_for('sov.show', project_id=project.id) }}">Start one</a>
+  {% endif %}
+{% else %}
+  <p class="lede">No contract recorded yet.</p>
+  {% if can_edit %}<a class="button" href="{{ url_for('projects.contract_form', project_id=project.id) }}">Add the contract</a>{% endif %}
+{% endif %}
+{% endblock %}

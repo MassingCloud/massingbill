@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Projects &middot; Massing Bill{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Projects</h1>
+  {% if can_create %}<a class="button" href="{{ url_for('projects.new') }}">New project</a>{% endif %}
+</div>
+
+{% if organization %}<p class="note">{{ organization.name }}</p>{% endif %}
+
+{% if memberships|length > 1 %}
+<form method="post" class="inline switcher">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <span class="hint">Switch organization:</span>
+  {% for m in memberships %}
+    <button type="submit" formaction="{{ url_for('auth.switch_organization', organization_id=m.organization_id) }}"
+            class="linkish">{{ m.organization.name }}</button>
+  {% endfor %}
+</form>
+{% endif %}
+
+{% if projects %}
+<table class="grid">
+  <thead><tr><th>Number</th><th>Name</th><th>State</th><th>Status</th><th class="num">Contract sum</th></tr></thead>
+  <tbody>
+  {% for p in projects %}
+    <tr>
+      <td><a href="{{ url_for('projects.detail', project_id=p.id) }}">{{ p.number }}</a></td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.jurisdiction_state }}</td>
+      <td>{{ p.status }}</td>
+      <td class="num">{% if p.prime_contract %}{{ p.prime_contract.original_contract_sum_cents | money }}{% else %}&mdash;{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="lede">No projects yet.</p>
+{% endif %}
+{% endblock %}

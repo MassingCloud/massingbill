@@ -37,11 +37,20 @@ KERNEL = {"massingbill/services/money.py"}
 COLUMN_DECLARERS = {"massingbill/models/base.py"}
 
 MONEY_HINTS = ("_cents", "amount", "_sum", "_value", "retainage", "price", "total")
+
+#: Suffixes that rule a name out however money-ish it reads. A foreign key to
+#: the retainage rule is not money; a rate in basis points is not money; a
+#: timestamp is not money. Without these the gate cries wolf, and a gate people
+#: learn to ignore is worse than no gate.
+NOT_MONEY_SUFFIXES = ("_id", "_bp", "_at", "_by", "_count", "_mode", "_rule")
+
 SCALING_OPS = (ast.Mult, ast.Div, ast.FloorDiv, ast.Mod)
 
 
 def _is_money_name(name: str) -> bool:
     lowered = name.lower()
+    if lowered.endswith(NOT_MONEY_SUFFIXES):
+        return False
     return any(hint in lowered for hint in MONEY_HINTS)
 
 

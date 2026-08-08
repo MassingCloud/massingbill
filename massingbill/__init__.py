@@ -28,7 +28,7 @@ def create_app(settings: Any = None, **overrides: Any) -> Flask:
             they never depend on the ambient environment.
         **overrides: Field overrides applied when ``settings`` is not given.
     """
-    from massingbill.blueprints import register_blueprints
+    from massingbill.blueprints import register_blueprints, register_template_helpers
     from massingbill.config import Settings, load_settings
     from massingbill.errors import register_error_handlers
     from massingbill.extensions import csrf, db, limiter, login_manager, migrate
@@ -54,16 +54,9 @@ def create_app(settings: Any = None, **overrides: Any) -> Flask:
     migrate.init_app(app, db)
     csrf.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = "auth.login"
+    login_manager.login_view = "auth.sign_in_form"
+    login_manager.login_message = "Sign in to continue."
     login_manager.session_protection = "strong"
-
-    @login_manager.user_loader
-    def _load_user(user_id: str) -> None:
-        # P0 has no User table yet. Flask-Login's template context processor
-        # calls this on every render, so it must exist from the first commit;
-        # P2 replaces the body with a real lookup.
-        return None
-
     limiter.init_app(app)
 
     # Import for metadata registration; Alembic autogenerate needs every mapped
@@ -83,6 +76,13 @@ def create_app(settings: Any = None, **overrides: Any) -> Flask:
     register_security_headers(app)
     register_error_handlers(app)
     register_blueprints(app)
+    register_template_helpers(app)
+
+    from massingbill.blueprints.auth import register_login_manager
+    from massingbill.services.rbac import register_request_hooks
+
+    register_login_manager(login_manager)
+    register_request_hooks(app)
 
     app.logger.info(
         "massingbill %s ready (entitlement=%s storage=%s env=%s)",

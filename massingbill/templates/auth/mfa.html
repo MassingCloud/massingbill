@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% from "_macros.html" import field %}
+{% block title %}Two-factor &middot; Massing Bill{% endblock %}
+{% block content %}
+<h1>Enter your code</h1>
+<p class="lede">Open your authenticator app and enter the six-digit code.</p>
+<form method="post" action="{{ url_for('auth.mfa_verify') }}" class="stack">
+  {{ form.hidden_tag() }}
+  {{ field(form.code) }}
+  {{ form.submit(class="button") }}
+</form>
+{% endblock %}

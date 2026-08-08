@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_macros.html" import field %}
+{% block title %}Create an account &middot; Massing Bill{% endblock %}
+{% block content %}
+<h1>Create an account</h1>
+<p class="lede">Sets up your company and makes you its owner.</p>
+<form method="post" action="{{ url_for('auth.register') }}" class="stack">
+  {{ form.hidden_tag() }}
+  {{ field(form.name) }}
+  {{ field(form.email) }}
+  {{ field(form.password) }}
+  {{ field(form.organization_name) }}
+  {{ form.submit(class="button") }}
+</form>
+{% endblock %}

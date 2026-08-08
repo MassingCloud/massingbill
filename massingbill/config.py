@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # ── Core ────────────────────────────────────────────────────────────────
     env: Literal["development", "testing", "production"] = "development"
     secret_key: str = Field(default="")
+    #: Encrypts secrets at rest (TOTP seeds, integration tokens). Kept separate
+    #: from ``secret_key`` because rotating a session key must not make every
+    #: stored TOTP seed undecryptable. Required in production.
+    encryption_key: str = Field(default="")
     instance_path: Path = Field(default=Path("instance"))
     database_url: str = Field(default="")
 
@@ -88,6 +92,19 @@ class Settings(BaseSettings):
                     "Generate one with: python -m massingbill.cli gen-secret"
                 )
             object.__setattr__(self, "secret_key", secrets.token_urlsafe(48))
+
+        # Outside production, derive the at-rest key so a developer configures
+        # one thing rather than two. See services/crypto.py for why production
+        # insists on a separate, separately rotatable value.
+        if not self.encryption_key:
+            if self.env == "production":
+                raise ValueError(
+                    "MASSINGBILL_ENCRYPTION_KEY is required in production. "
+                    "It encrypts TOTP seeds and integration tokens at rest, and is kept "
+                    "separate from SECRET_KEY so rotating a session key does not lock every "
+                    "user out of two-factor. Generate one with: massingbill gen-secret"
+                )
+            object.__setattr__(self, "encryption_key", f"derived-from-secret:{self.secret_key}")
 
         # Resolve the instance path once, here. Flask-SQLAlchemy re-interprets a
         # *relative* SQLite path against Flask's own instance folder, which for

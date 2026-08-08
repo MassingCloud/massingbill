@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% from "_macros.html" import field, checkbox %}
+{% block title %}Edit line &middot; {{ project.number }}{% endblock %}
+{% block content %}
+<h1>Edit line {{ line.item_no }}</h1>
+<form method="post" class="stack"
+      action="{{ url_for('sov.update_line', project_id=project.id, line_id=line.id) }}">
+  {{ form.hidden_tag() }}
+  {{ field(form.item_no) }}
+  {{ field(form.description) }}
+  {{ field(form.csi_code) }}
+  {{ field(form.group) }}
+  {{ field(form.scheduled_value) }}
+  {{ field(form.retainage_rate) }}
+  {{ checkbox(form.is_general_conditions) }}
+  {{ checkbox(form.is_allowance) }}
+  {{ form.submit(class="button") }}
+</form>
+<p class="note"><a href="{{ url_for('sov.show', project_id=project.id) }}">Back to the schedule</a></p>
+{% endblock %}

@@ -1,0 +1,81 @@
+# CSI MasterFormat divisions (2018 edition).
+#
+# Division level only. A schedule of values is coded by division in practice --
+# a GC does not bill "09 91 23 Interior Painting" as its own SOV line, it bills
+# "Division 09 Finishes". Section-level codes belong in a cost-code import, not
+# in a seed everyone gets.
+#
+# Reserved divisions (15-19, 24-24, 29-30, etc.) are omitted deliberately: they
+# have no titles to seed and would only clutter a picker.
+
+divisions:
+  - code: "00"
+    title: Procurement and Contracting Requirements
+  - code: "01"
+    title: General Requirements
+  - code: "02"
+    title: Existing Conditions
+  - code: "03"
+    title: Concrete
+  - code: "04"
+    title: Masonry
+  - code: "05"
+    title: Metals
+  - code: "06"
+    title: Wood, Plastics, and Composites
+  - code: "07"
+    title: Thermal and Moisture Protection
+  - code: "08"
+    title: Openings
+  - code: "09"
+    title: Finishes
+  - code: "10"
+    title: Specialties
+  - code: "11"
+    title: Equipment
+  - code: "12"
+    title: Furnishings
+  - code: "13"
+    title: Special Construction
+  - code: "14"
+    title: Conveying Equipment
+  - code: "21"
+    title: Fire Suppression
+  - code: "22"
+    title: Plumbing
+  - code: "23"
+    title: Heating, Ventilating, and Air Conditioning (HVAC)
+  - code: "25"
+    title: Integrated Automation
+  - code: "26"
+    title: Electrical
+  - code: "27"
+    title: Communications
+  - code: "28"
+    title: Electronic Safety and Security
+  - code: "31"
+    title: Earthwork
+  - code: "32"
+    title: Exterior Improvements
+  - code: "33"
+    title: Utilities
+  - code: "34"
+    title: Transportation
+  - code: "35"
+    title: Waterway and Marine Construction
+  - code: "40"
+    title: Process Interconnections
+  - code: "41"
+    title: Material Processing and Handling Equipment
+  - code: "42"
+    title: Process Heating, Cooling, and Drying Equipment
+  - code: "43"
+    title: Process Gas and Liquid Handling, Purification, and Storage Equipment
+  - code: "44"
+    title: Pollution and Waste Control Equipment
+  - code: "45"
+    title: Industry-Specific Manufacturing Equipment
+  - code: "46"
+    title: Water and Wastewater Equipment
+  - code: "48"
+    title: Electrical Power Generation

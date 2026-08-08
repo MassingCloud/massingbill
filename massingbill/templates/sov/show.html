@@ -1,0 +1,114 @@
+{% extends "base.html" %}{% from "_macros.html" import field, checkbox %}
+{% block title %}Schedule of values &middot; {{ project.number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Schedule of values</h1>
+  <a class="button button-quiet" href="{{ url_for('projects.detail', project_id=project.id) }}">Back to project</a>
+</div>
+<p class="lede">{{ project.number }} &mdash; {{ project.name }}</p>
+
+{% if not schedule %}
+  <p class="lede">This contract has no schedule of values yet.</p>
+  {% if can_write %}
+  <form method="post" action="{{ url_for('sov.create', project_id=project.id) }}">
+    {{ confirm_form.hidden_tag() }}
+    <button type="submit" class="button">Start the schedule</button>
+  </form>
+  {% endif %}
+{% else %}
+  <p class="note">Revision {{ schedule.revision }} &middot; {{ schedule.status }}</p>
+
+  <table class="grid sov">
+    <thead>
+      <tr>
+        <th>A &mdash; Item</th>
+        <th>B &mdash; Description of work</th>
+        <th>CSI</th>
+        <th class="num">C &mdash; Scheduled value</th>
+        {% if can_write and schedule.is_editable %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in schedule.lines %}
+      <tr>
+        <td>{{ line.item_no }}</td>
+        <td>
+          {{ line.description }}
+          {% if line.is_allowance %}<span class="tag">allowance</span>{% endif %}
+          {% if line.is_general_conditions %}<span class="tag">general conditions</span>{% endif %}
+        </td>
+        <td>{{ line.csi_code }}</td>
+        <td class="num">{{ line.current_scheduled_value_cents | money }}</td>
+        {% if can_write and schedule.is_editable %}
+        <td class="actions">
+          <a href="{{ url_for('sov.edit_line', project_id=project.id, line_id=line.id) }}">Edit</a>
+          <form method="post" class="inline"
+                action="{{ url_for('sov.remove_line', project_id=project.id, line_id=line.id) }}">
+            {{ confirm_form.hidden_tag() }}
+            <button type="submit" class="linkish danger">Remove</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="3">Total scheduled value</th>
+        <th class="num">{{ schedule.total_scheduled_value_cents | money }}</th>
+        {% if can_write and schedule.is_editable %}<th></th>{% endif %}
+      </tr>
+      <tr>
+        <th colspan="3">Contract sum</th>
+        <th class="num">{{ reconciliation.contract_sum_cents | money }}</th>
+        {% if can_write and schedule.is_editable %}<th></th>{% endif %}
+      </tr>
+      <tr class="{% if reconciliation.difference_cents == 0 %}tie-ok{% else %}tie-bad{% endif %}">
+        <th colspan="3">Difference</th>
+        <th class="num">{{ reconciliation.difference_cents | money }}</th>
+        {% if can_write and schedule.is_editable %}<th></th>{% endif %}
+      </tr>
+    </tfoot>
+  </table>
+
+  {% if reconciliation.difference_cents == 0 %}
+    <p class="ok">The schedule ties to the contract sum.</p>
+  {% else %}
+    <p class="error">
+      The schedule does not tie to the contract sum, so it cannot be approved yet.
+    </p>
+  {% endif %}
+
+  {% if can_write and schedule.is_editable %}
+    <h2>Add a line</h2>
+    <form method="post" class="stack" action="{{ url_for('sov.add_line', project_id=project.id) }}">
+      {{ line_form.hidden_tag() }}
+      {{ field(line_form.item_no) }}
+      {{ field(line_form.description) }}
+      {{ field(line_form.csi_code) }}
+      {{ field(line_form.group) }}
+      {{ field(line_form.scheduled_value) }}
+      {{ field(line_form.retainage_rate) }}
+      {{ checkbox(line_form.is_general_conditions) }}
+      {{ checkbox(line_form.is_allowance) }}
+      {{ line_form.submit(class="button") }}
+    </form>
+  {% endif %}
+
+  {% if can_approve and schedule.is_editable %}
+    <form method="post" class="stack" action="{{ url_for('sov.approve', project_id=project.id) }}">
+      {{ confirm_form.hidden_tag() }}
+      <button type="submit" class="button">Approve revision {{ schedule.revision }}</button>
+    </form>
+  {% endif %}
+
+  {% if can_approve and schedule.status == "approved" %}
+    <form method="post" class="stack" action="{{ url_for('sov.revise', project_id=project.id) }}">
+      {{ confirm_form.hidden_tag() }}
+      <button type="submit" class="button button-quiet">
+        Create revision {{ schedule.revision + 1 }}
+      </button>
+    </form>
+  {% endif %}
+{% endif %}
+{% endblock %}

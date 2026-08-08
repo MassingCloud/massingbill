@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% from "_macros.html" import field, checkbox %}
+{% block title %}Contract &middot; {{ project.number }}{% endblock %}
+{% block content %}
+<h1>Prime contract</h1>
+<p class="lede">{{ project.number }} &mdash; {{ project.name }}</p>
+<form method="post" class="stack" action="{{ url_for('projects.save_contract', project_id=project.id) }}">
+  {{ form.hidden_tag() }}
+  {{ field(form.number) }}
+  {{ field(form.original_contract_sum) }}
+  {{ field(form.retainage_rate_work) }}
+  {{ field(form.retainage_rate_stored) }}
+  {{ checkbox(form.stored_materials_allowed) }}
+  {{ checkbox(form.offsite_stored_allowed) }}
+  {{ form.submit(class="button") }}
+</form>
+{% endblock %}
