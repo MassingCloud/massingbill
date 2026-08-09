@@ -114,6 +114,37 @@ def test_production_refuses_to_start_without_a_secret_key() -> None:
         Settings(env="production", secret_key="")
 
 
+def test_production_refuses_to_start_without_an_encryption_key() -> None:
+    """Regression: the container had no encryption key and died on boot with a
+    pydantic traceback, which is what an operator following the README saw.
+
+    The key is separate from ``secret_key`` on purpose -- rotating a session key
+    must not make every stored TOTP seed undecryptable -- so production has to
+    demand both, and ``deploy/docker-entrypoint.sh`` checks for both before
+    anything imports the app.
+    """
+    with pytest.raises(ValueError, match="MASSINGBILL_ENCRYPTION_KEY is required"):
+        Settings(env="production", secret_key="x" * 40, encryption_key="")
+
+
+def test_the_entrypoint_checks_both_production_secrets() -> None:
+    """The friendly check and the settings check must not drift apart."""
+    entrypoint = Path(__file__).resolve().parent.parent / "deploy" / "docker-entrypoint.sh"
+    script = entrypoint.read_text(encoding="utf-8")
+
+    assert "MASSINGBILL_SECRET_KEY" in script
+    assert "MASSINGBILL_ENCRYPTION_KEY" in script
+
+
+def test_the_compose_stack_supplies_both_production_secrets() -> None:
+    compose = (Path(__file__).resolve().parent.parent / "docker-compose.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "MASSINGBILL_SECRET_KEY:" in compose
+    assert "MASSINGBILL_ENCRYPTION_KEY:" in compose
+
+
 def test_development_relaxes_the_secure_cookie_flag() -> None:
     settings = Settings(env="development", secret_key="x" * 32)
     assert settings.session_cookie_secure is False

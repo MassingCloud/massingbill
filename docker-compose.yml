@@ -17,9 +17,14 @@ services:
         condition: service_healthy
     environment:
       MASSINGBILL_ENV: production
-      # Development-only placeholder. Replace before exposing this anywhere:
-      #   docker compose run --rm app massingbill gen-secret
+      # Development-only placeholders. Replace BOTH before exposing this
+      # anywhere:  docker compose run --rm app massingbill gen-secret
+      #
+      # They are separate on purpose: SECRET_KEY signs sessions, ENCRYPTION_KEY
+      # encrypts TOTP seeds at rest. Rotating the first must not lock every user
+      # out of two-factor.
       MASSINGBILL_SECRET_KEY: ${MASSINGBILL_SECRET_KEY:-dev-only-change-me-before-deploying}
+      MASSINGBILL_ENCRYPTION_KEY: ${MASSINGBILL_ENCRYPTION_KEY:-dev-only-change-me-before-deploying}
       MASSINGBILL_DATABASE_URL: postgresql+psycopg://massingbill:massingbill@db:5432/massingbill
       MASSINGBILL_INSTANCE_PATH: /data
       # Standalone defaults, stated explicitly so an operator can see them.

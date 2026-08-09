@@ -207,7 +207,11 @@ jobs:
           cache: pip
       - run: pip install ".[dev]" pip-audit cyclonedx-bom
       - name: Audit dependencies
-        run: pip-audit --strict --progress-spinner off
+        # --skip-editable: the project installs itself editable, and pip-audit
+        # cannot look up a package that is not on PyPI. Auditing our own source
+        # against a vulnerability database is not the point anyway -- the
+        # dependencies are.
+        run: pip-audit --strict --skip-editable --progress-spinner off
       - name: Generate SBOM
         run: cyclonedx-py environment -o sbom.json
       - uses: actions/upload-artifact@v4

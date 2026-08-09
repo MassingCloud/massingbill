@@ -56,24 +56,26 @@ tie-out rule set; the G702/G703 layout is one of several renderers over it.
 
 ## Status
 
-**Phases P0 (foundation) and P1 (money kernel) are complete.** The application
-factory, adapter seams, security posture, container and CI are in place, and the
-arithmetic every pay application rests on is written and exhaustively tested.
-The domain model lands in P2–P4.
+**Phases P0–P4 are complete: the computational product is done.** The money
+kernel, the tenant and authorization model, the period engine and the tie-out
+rules are all built and tested. A ten-period golden project with hand-computed
+G702 headers reproduces every figure exactly, and every period passes tie-out.
+What remains is presentation (documents), workflow, and integrations.
 
-See [`SPEC.md`](SPEC.md) for the full plan: research, data model, the money
-kernel, the tie-out rule reference, the testing strategy and the phase-by-phase
-acceptance criteria.
+See [`SPEC.md`](SPEC.md) for the full plan and the phase-by-phase acceptance
+criteria, and [`docs/competitive-upgrades.md`](docs/competitive-upgrades.md) for
+the Textura / GCPay / Handle review that shaped the later phases.
 
 | Phase | Scope | State |
 |---|---|---|
 | P0 | Foundation, adapters, CI, container | **done** |
 | P1 | Money kernel | **done** |
-| P2 | Orgs, RBAC, projects, schedule of values | next |
-| P3 | The requisition engine (G702/G703, retainage, change orders) | |
-| P4 | Tie-out rule engine | |
-| P5 | PDF / XLSX / CSV / JSON documents | |
+| P2 | Orgs, RBAC, projects, schedule of values, audit chain | **done** |
+| P3 | The requisition engine (G702/G703, retainage, change orders, stored materials) | **done** |
+| P4 | Tie-out rule engine — 24 rules | **done** |
+| P5 | PDF / XLSX / CSV / JSON documents | next |
 | P6 | Workflow, lien waivers, compliance, subcontractors, e-signature | |
+| P6.5 | Statutory deadline engine | |
 | P7 | REST API, webhooks, OIDC, S3, Procore / QuickBooks / Sage | |
 | P8 | Hardening, ops runbook, **v1.0.0** | |
 | P9–P10 | *Optional:* massing.cloud adapter, WordPress bridge | |
@@ -118,8 +120,11 @@ full surface. The three that matter:
 | `MASSINGBILL_STORAGE_BACKEND` | `local` | Protected local filesystem |
 | `MASSINGBILL_OIDC_PROVIDERS` | *(empty)* | Empty means local password accounts only |
 
-`MASSINGBILL_SECRET_KEY` is the one value required in production; the container
-refuses to start without it. Generate one with `massingbill gen-secret`.
+Two values are required in production, and the container refuses to start
+without either: `MASSINGBILL_SECRET_KEY` (signs sessions) and
+`MASSINGBILL_ENCRYPTION_KEY` (encrypts TOTP seeds and integration tokens at
+rest). They are separate on purpose — rotating a session key must not lock every
+user out of two-factor. Generate a value for each with `massingbill gen-secret`.
 
 ## A note on the AIA forms
 
