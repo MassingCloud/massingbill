@@ -61,6 +61,11 @@ WAIVER_VOIDED = "waiver.voided"
 WAIVER_TEMPLATE_VERIFIED = "waiver_template.verified"
 COMPLIANCE_REQUIRED = "compliance.required"
 COMPLIANCE_FILED = "compliance.filed"
+SUBCONTRACT_CREATED = "subcontract.created"
+SUB_BILLING_RECEIVED = "sub_billing.received"
+SUB_BILLING_APPROVED = "sub_billing.approved"
+SUB_BILLING_REJECTED = "sub_billing.rejected"
+PAYMENT_RECORDED = "payment.recorded"
 
 
 def _encode(value: dict[str, Any] | None) -> str:

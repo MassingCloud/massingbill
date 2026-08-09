@@ -48,6 +48,7 @@ from .organization import (
     Organization,
     Role,
 )
+from .payment import Payment, PaymentMethod
 from .project import (
     ContractParty,
     FormStyle,
@@ -61,6 +62,13 @@ from .project import (
 )
 from .sov import CostCode, ScheduleOfValues, SovLine, SovStatus
 from .stored import StorageLocation, StoredMaterial
+from .subcontract import (
+    SubApplication,
+    SubApplicationStatus,
+    Subcontract,
+    SubcontractLine,
+    SubcontractStatus,
+)
 from .user import User
 from .waiver import (
     WAIVER_TYPE_LABELS,
@@ -100,6 +108,8 @@ __all__ = [
     "Membership",
     "Organization",
     "PartyRole",
+    "Payment",
+    "PaymentMethod",
     "PcoStatus",
     "PeriodConvention",
     "PotentialChangeOrder",
@@ -116,6 +126,11 @@ __all__ = [
     "SovStatus",
     "StorageLocation",
     "StoredMaterial",
+    "SubApplication",
+    "SubApplicationStatus",
+    "Subcontract",
+    "SubcontractLine",
+    "SubcontractStatus",
     "TimestampMixin",
     "User",
     "UuidPrimaryKeyMixin",

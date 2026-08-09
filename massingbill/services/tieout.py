@@ -473,9 +473,11 @@ def _policy(app: Application) -> list[Finding]:
     # Stored materials: backup, and the double-bill trap.
     out.extend(_stored_material_rules(app))
 
-    # Waivers and compliance (docs/competitive-upgrades.md, U1 and U4).
+    # Waivers, compliance and payment (docs/competitive-upgrades.md U1, U3, U4).
     out.extend(_waiver_rules(app))
     out.extend(_compliance_rules(app))
+    out.extend(_payment_rules(app))
+    out.extend(_party_rules(app))
 
     # SEQUENCE: gaps in application numbering.
     if contract is not None and _checks_live_data(app):
@@ -758,6 +760,107 @@ def _compliance_rules(app: Application) -> list[Finding]:
                     line_item=label,
                 )
             )
+
+    return out
+
+
+# ── Payment (competitive-upgrades.md U3) ────────────────────────────────────
+
+
+def _payment_rules(app: Application) -> list[Finding]:
+    """What was certified against what actually arrived.
+
+    Reported rather than blocking: a short payment is a fact about the owner,
+    not a defect in the application. But it has to be visible, because it is the
+    number that decides whether a conditional waiver has taken effect and
+    whether the next period's line 7 is what everyone assumes.
+    """
+    from massingbill.services import payments as payment_service
+
+    if app.is_editable:
+        return []
+
+    paid = payment_service.paid_to_date(app)
+    if paid == 0:
+        return []
+
+    certified = app.certified_payment_cents
+    if paid == certified:
+        return []
+
+    outstanding = certified - paid
+    return [
+        Finding(
+            "PAY-VARIANCE",
+            Severity.WARNING if outstanding > 0 else Severity.INFO,
+            (
+                f"Certified {to_display(cents(certified))}, received "
+                f"{to_display(cents(paid))}"
+                + (
+                    f" -- {to_display(cents(outstanding))} still outstanding."
+                    if outstanding > 0
+                    else f" -- {to_display(cents(-outstanding))} more than certified."
+                )
+            ),
+            expected=certified,
+            actual=paid,
+            citation="recorded payments against the certificate",
+        )
+    ]
+
+
+# ── Party details (competitive-upgrades.md U2) ──────────────────────────────
+
+
+def _party_rules(app: Application) -> list[Finding]:
+    """Details a document needs before it goes out.
+
+    Handle validates project data *before* sending; this is the same idea. A
+    waiver naming the wrong legal entity, or a project with no address in a
+    state whose notice requires one, is unenforceable in a way nobody notices
+    until it is needed.
+    """
+    out: list[Finding] = []
+    contract = app.prime_contract
+    project = contract.project if contract is not None else None
+    if project is None:
+        return out
+
+    if not project.jurisdiction_state:
+        out.append(
+            Finding(
+                "PARTY-MISSING",
+                Severity.WARNING,
+                (
+                    "This project has no state on file, so no statutory retainage cap "
+                    "or lien-waiver form can be selected for it."
+                ),
+                citation="project jurisdiction",
+            )
+        )
+
+    if not project.address.strip():
+        out.append(
+            Finding(
+                "ADDRESS-MISSING",
+                Severity.WARNING,
+                (
+                    "This project has no address on file. Several states require the "
+                    "property to be identified on a lien waiver or preliminary notice."
+                ),
+                citation="project address",
+            )
+        )
+
+    if contract is not None and not contract.number.strip():
+        out.append(
+            Finding(
+                "PARTY-MISSING",
+                Severity.INFO,
+                "The prime contract has no contract number recorded.",
+                citation="contract identification",
+            )
+        )
 
     return out
 
