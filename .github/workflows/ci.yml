@@ -168,18 +168,23 @@ jobs:
           socket.create_connection = refuse
 
           import massingbill
+          # Single-sourced with the standalone-integrity test, so this job and
+          # that test cannot disagree about what a minimal install may lack.
+          from massingbill.optional import is_optional
 
+          imported = 0
           for module in pkgutil.walk_packages(massingbill.__path__, "massingbill."):
-              if "integrations" in module.name:
+              if is_optional(module.name):
                   continue
               importlib.import_module(module.name)
+              imported += 1
 
           from massingbill import create_app
 
           app = create_app()
           assert app.test_client().get("/healthz").status_code == 200
           assert app.config["MASSINGBILL_ENTITLEMENT_PROVIDER"] == "standalone"
-          print("imported every module, booted, and served /healthz with no network")
+          print(f"imported {imported} modules, booted, and served /healthz with no network")
           PY
 
   no-adapters:

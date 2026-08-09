@@ -16,43 +16,26 @@ import pytest
 from flask import Flask
 
 import massingbill
+from massingbill import optional as _optional
 from massingbill.errors import AdapterUnavailableError
 from massingbill.services.entitlement import StandaloneProvider, get_provider
 from massingbill.services.storage import LocalStorage, get_backend
 
-#: Modules that are allowed to know massing.cloud exists. Everything else in the
-#: package must be importable and testable without them.
-ADAPTER_MODULES = {
-    "massingbill.services.entitlement.massing_cloud",
-    "massingbill.services.identity.oidc",
-    "massingbill.services.storage.s3",
-    "massingbill.services.storage.massing_vault",
-}
-
-#: Modules that need an optional *extra* rather than an optional adapter --
-#: `massingbill[render]`. They are lazily imported by
-#: ``services/renderers/documents.py`` for exactly the same reason the adapters
-#: are: a headless API deployment installs neither, and must still boot.
-#:
-#: Listed separately from ADAPTER_MODULES because the two are different claims.
-#: An adapter is a coupling we refuse; an extra is a dependency we make optional.
-OPTIONAL_EXTRA_MODULES = {
-    "massingbill.services.renderers.pdf",
-    "massingbill.services.renderers.xlsx",
-}
-
-OPTIONAL_MODULES = ADAPTER_MODULES | OPTIONAL_EXTRA_MODULES
+# Single-sourced in massingbill/optional.py, because three places have to
+# agree about this: here, the `offline` CI job, and anyone reasoning about what
+# a minimal deployment installs. When the CI job kept its own copy it walked a
+# module needing an extra it had not installed, and failed on a fact this test
+# already knew.
+ADAPTER_MODULES = set(_optional.ADAPTER_MODULES)
+OPTIONAL_MODULES = set(_optional.OPTIONAL_MODULES)
 
 
 def _iter_core_modules() -> list[str]:
-    names: list[str] = []
-    for info in pkgutil.walk_packages(massingbill.__path__, prefix="massingbill."):
-        if info.name in OPTIONAL_MODULES:
-            continue
-        if info.name.startswith("massingbill.services.integrations"):
-            continue
-        names.append(info.name)
-    return names
+    return [
+        info.name
+        for info in pkgutil.walk_packages(massingbill.__path__, prefix="massingbill.")
+        if not _optional.is_optional(info.name)
+    ]
 
 
 def test_every_core_module_imports_without_optional_dependencies() -> None:
