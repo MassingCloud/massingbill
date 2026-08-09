@@ -10,6 +10,10 @@ general contractor can run themselves.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
+**[See a worked six-month project →](https://massingcloud.github.io/massingbill/)**
+Real output from the real engine: G702/G703 applications, live-formula
+spreadsheets, and the reconciliation page no competitor ships.
+
 ---
 
 ## Standalone. Actually standalone.
@@ -23,6 +27,18 @@ docker compose up
 ```
 
 That is the whole install — <http://localhost:8000>.
+
+Then seed a worked project to look at:
+
+```bash
+docker compose exec app massingbill demo
+```
+
+Six periods on a $4,850,000 job, exercising a change order that adds a line,
+stored material that later installs, a deductive change order, and an architect
+certifying less than was applied for. The same project is published at
+[massingcloud.github.io/massingbill](https://massingcloud.github.io/massingbill/)
+if you would rather just read it.
 
 Massing Bill *can* connect to [massing.cloud](https://massing.cloud) for
 single sign-on, entitlements and vault storage, but every one of those is an
@@ -56,11 +72,15 @@ tie-out rule set; the G702/G703 layout is one of several renderers over it.
 
 ## Status
 
-**Phases P0–P4 are complete: the computational product is done.** The money
-kernel, the tenant and authorization model, the period engine and the tie-out
-rules are all built and tested. A ten-period golden project with hand-computed
-G702 headers reproduces every figure exactly, and every period passes tie-out.
-What remains is presentation (documents), workflow, and integrations.
+**Phases P0–P5 are complete, and P6 is most of the way there.** The money
+kernel, the tenant and authorization model, the period engine, 35 tie-out rules
+and the whole document set are built and tested. A ten-period golden project
+with hand-computed G702 headers reproduces every figure exactly, every period
+passes tie-out, and the [published demo](https://massingcloud.github.io/massingbill/)
+is that same engine's real output.
+
+What remains in P6 is the web UI over the workflow services, which exist and are
+tested but are reachable today only through the API and the CLI.
 
 See [`SPEC.md`](SPEC.md) for the full plan and the phase-by-phase acceptance
 criteria, and [`docs/competitive-upgrades.md`](docs/competitive-upgrades.md) for
@@ -72,9 +92,10 @@ the Textura / GCPay / Handle review that shaped the later phases.
 | P1 | Money kernel | **done** |
 | P2 | Orgs, RBAC, projects, schedule of values, audit chain | **done** |
 | P3 | The requisition engine (G702/G703, retainage, change orders, stored materials) | **done** |
-| P4 | Tie-out rule engine — 24 rules | **done** |
-| P5 | PDF / XLSX / CSV / JSON documents | next |
-| P6 | Workflow, lien waivers, compliance, subcontractors, e-signature | |
+| P4 | Tie-out rule engine — 35 rules | **done** |
+| P5 | PDF / XLSX / CSV / JSON documents | **done** |
+| P6 | Lien waivers, e-signature, compliance, subcontracts, payments | **done** |
+| P6 | The web UI over them | next |
 | P6.5 | Statutory deadline engine | |
 | P7 | REST API, webhooks, OIDC, S3, Procore / QuickBooks / Sage | |
 | P8 | Hardening, ops runbook, **v1.0.0** | |
@@ -128,15 +149,22 @@ user out of two-factor. Generate a value for each with `massingbill gen-secret`.
 
 ## A note on the AIA forms
 
-AIA G702® and G703® are copyrighted documents of The American Institute of
-Architects, and reproducing them requires a licence from the AIA.
+AIA G702® and G703® are published by The American Institute of Architects, which
+asserts copyright in them and licenses their use.
 
-Massing Bill models the **line structure and the arithmetic**, which is not what
-copyright protects. It does not reproduce AIA form artwork or certification
-wording, and every rendered document carries a disclaimer that cannot be removed
-from the AIA-style renderer. A house-style renderer, a custom renderer that maps
-onto whatever form your GC requires, and a G703-column-ordered XLSX export (so a
-licence holder can populate their own official document) all ship alongside it.
+Massing Bill implements the **line structure and the arithmetic**, and writes
+every word itself. That distinction is not wishful: under *Baker v. Selden* and
+[37 C.F.R. § 202.1(c)](https://www.ecfr.gov/current/title-37/chapter-II/subchapter-A/part-202/section-202.1),
+"blank forms… designed for recording information" are not copyrightable — a
+ruled grid follows from the arithmetic it records. What *is* protected is the
+expressive prose: certification wording, instructions, artwork. **Every
+certification paragraph in this product was written from scratch**, and no AIA
+artwork, wording or mark appears in it.
+
+Every rendered document carries a disclaimer that cannot be removed from any
+renderer. A house-style renderer, a custom renderer that maps onto whatever form
+your GC requires, and a G703-column-ordered XLSX export (so a licence holder can
+populate their own official document) all ship alongside it.
 
 **Massing Bill is not affiliated with, endorsed by, or sponsored by The American
 Institute of Architects.** See [`docs/legal-forms-policy.md`](docs/legal-forms-policy.md).

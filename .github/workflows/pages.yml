@@ -1,0 +1,89 @@
+name: Demo site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; never cancel one mid-flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the WeasyPrint native stack
+        # So the published demo carries real PDFs rather than quietly omitting
+        # them, which would make the most visible output the one nobody checks.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b \
+            libcairo2 libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info \
+            fonts-dejavu-core
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[render]"
+
+      - name: Run the demo through the real engine
+        run: python scripts/build_demo_site.py site
+
+      - name: Every published application must tie out
+        # The demo is a claim about correctness. Publishing one that does not
+        # balance would be worse than publishing nothing.
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+
+          failures = []
+          for path in sorted(pathlib.Path("site/documents").glob("*.json")):
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              if not payload["tieout"]["ok"]:
+                  blocking = [
+                      f["rule_id"]
+                      for f in payload["tieout"]["findings"]
+                      if f["severity"] == "error"
+                  ]
+                  failures.append(f"{path.name}: {', '.join(blocking)}")
+
+          if failures:
+              print("Demo applications failed tie-out:", *failures, sep="\n  ")
+              sys.exit(1)
+          print("Every demo application ties out.")
+          PY
+
+      - name: The disclaimer must be on every page
+        run: |
+          for f in site/index.html site/documents/*.html; do
+            grep -q "not affiliated with" "$f" || { echo "missing disclaimer: $f"; exit 1; }
+          done
+          echo "Disclaimer present on every rendered page."
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -96,6 +96,49 @@ def _create_admin(args: argparse.Namespace) -> int:
     return 0
 
 
+def _demo(args: argparse.Namespace) -> int:
+    """Seed the demo project into the configured database.
+
+    Six periods on a $4,850,000 job, exercising a change order, stored material
+    that later installs, a deductive change order and a partial certification.
+    Sign in with the printed credentials to walk through it.
+    """
+    from massingbill import create_app
+    from massingbill.extensions import db
+    from massingbill.services import demo as demo_service
+
+    app = create_app()
+    with app.app_context():
+        try:
+            built = demo_service.build(email=args.email, password=args.password)
+
+            # Read every attribute before the context closes: after commit the
+            # instances expire, and refreshing them outside the app context
+            # raises DetachedInstanceError.
+            lines = [
+                f"Seeded {built.project.number} — {built.project.name}",
+                f"  organization  {built.organization.name}",
+                f"  sign in as    {args.email}",
+                f"  password      {args.password}",
+            ]
+            if built.waiver_refusal:
+                lines += [
+                    "",
+                    "The statutory waiver form refused to render, which is correct",
+                    "for a California project:",
+                    f"  {built.waiver_refusal}",
+                ]
+            summary = "\n".join(lines)
+            db.session.commit()
+        except Exception as exc:  # noqa: BLE001 - report cleanly, do not traceback
+            db.session.rollback()
+            print(f"Could not seed the demo: {exc}", file=sys.stderr)
+            return 1
+
+    print(summary)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="massingbill", description="Massing Bill CLI")
     parser.add_argument("--version", action="version", version=f"massingbill {__version__}")
@@ -108,6 +151,10 @@ def main(argv: list[str] | None = None) -> int:
     audit_sub = audit_parser.add_subparsers(dest="audit_command")
     verify = audit_sub.add_parser("verify", help="Verify the hash chain")
     verify.add_argument("--organization", help="Limit to one organization id")
+
+    demo_parser = sub.add_parser("demo", help="Seed a worked six-period demo project")
+    demo_parser.add_argument("--email", default="demo@massingbill.example")
+    demo_parser.add_argument("--password", default="demo-account-not-for-production")
 
     admin = sub.add_parser("create-admin", help="Create the first user and organization")
     admin.add_argument("--email", required=True)
@@ -127,6 +174,8 @@ def main(argv: list[str] | None = None) -> int:
         return _check(args)
     if args.command == "create-admin":
         return _create_admin(args)
+    if args.command == "demo":
+        return _demo(args)
     if args.command == "audit":
         if args.audit_command == "verify":
             return _audit_verify(args)

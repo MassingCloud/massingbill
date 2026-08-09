@@ -108,6 +108,17 @@ class ApplicationView:
     project_name: str
     project_address: str
     contract_number: str
+    contract_date: date | None
+
+    # The parties a pay application names. Blank on the rendered form when not
+    # recorded, rather than omitted -- an owner reading it should be able to see
+    # that a field exists and is empty.
+    owner_name: str
+    owner_address: str
+    contractor_name: str
+    contractor_address: str
+    architect_name: str
+    architect_address: str
 
     retainage_work: Bp
     retainage_stored: Bp
@@ -117,6 +128,14 @@ class ApplicationView:
     findings: list[dict[str, Any]] = field(default_factory=list)
     tieout_summary: str = ""
     tieout_ok: bool = True
+
+    # The architect's certificate. None until one is issued, which is why the
+    # rendered block shows a rule to sign rather than a figure.
+    amount_certified: Cents | None = None
+    certified_variance: Cents | None = None
+    certification_reason: str = ""
+    certified_by: str = ""
+    certified_on: date | None = None
 
     disclaimer: str = AIA_DISCLAIMER
 
@@ -138,6 +157,10 @@ def build(application: Application, *, include_tieout: bool = True) -> Applicati
     project = contract.project if contract is not None else None
     rule = contract.retainage_rule if contract is not None else None
 
+    owner = project.owner_party if project is not None else None
+    architect = project.architect_party if project is not None else None
+    organization = _organization_for(application)
+
     snapshot = application.snapshot
     use_snapshot = snapshot is not None and not application.is_editable
 
@@ -158,11 +181,26 @@ def build(application: Application, *, include_tieout: bool = True) -> Applicati
         project_name=project.name if project else "",
         project_address=project.address if project else "",
         contract_number=contract.number if contract else "",
+        contract_date=contract.execution_date if contract else None,
+        owner_name=owner.name if owner else "",
+        owner_address=owner.address if owner else "",
+        contractor_name=organization.name if organization else "",
+        contractor_address="",
+        architect_name=architect.name if architect else "",
+        architect_address=architect.address if architect else "",
         retainage_work=rates[0],
         retainage_stored=rates[1],
         header=header,
         lines=lines,
     )
+
+    certification = application.certification
+    if certification is not None:
+        view.amount_certified = cents(certification.amount_certified_cents)
+        view.certified_variance = cents(certification.variance_cents)
+        view.certification_reason = certification.reason
+        view.certified_by = certification.certified_by_label
+        view.certified_on = certification.certified_at.date()
 
     if include_tieout:
         report = tieout.run(application)
@@ -313,6 +351,14 @@ def as_json(view: ApplicationView) -> dict[str, Any]:
         },
         "disclaimer": view.disclaimer,
     }
+
+
+def _organization_for(application: Application) -> Any:
+    """The contracting entity, for the "from contractor" block."""
+    from massingbill.extensions import db
+    from massingbill.models import Organization
+
+    return db.session.get(Organization, application.organization_id)
 
 
 def style_for(application: Application) -> FormStyle:

@@ -6,18 +6,23 @@
   document however it is titled.
 #}
 
+{% from "documents/_certification.html" import parties, contractor_certification, architect_certificate %}
+
 {% macro cover(view, heading, subheading) %}
 <h1>{{ heading }}</h1>
 <p class="muted">{{ subheading }}</p>
 
 {% if view.status == "draft" %}<p class="draft-mark">DRAFT — NOT SUBMITTED</p>{% endif %}
 
+{{ parties(view) }}
+
 <dl class="facts">
   <div><dt>Project</dt><dd>{{ view.project_number }} — {{ view.project_name }}</dd></div>
   {% if view.project_address %}<div><dt>Address</dt><dd>{{ view.project_address }}</dd></div>{% endif %}
   {% if view.contract_number %}<div><dt>Contract</dt><dd>{{ view.contract_number }}</dd></div>{% endif %}
+  {% if view.contract_date %}<div><dt>Contract date</dt><dd>{{ view.contract_date.isoformat() }}</dd></div>{% endif %}
   <div><dt>Application no.</dt><dd>{{ view.number }}</dd></div>
-  <div><dt>Period</dt><dd>{{ view.period_label }}</dd></div>
+  <div><dt>Period to</dt><dd>{{ view.period_end.isoformat() }}</dd></div>
   <div><dt>Application date</dt><dd>{{ view.application_date.isoformat() }}</dd></div>
   <div><dt>Retainage</dt><dd>{{ view.retainage_work | pct }} on work, {{ view.retainage_stored | pct }} on stored material</dd></div>
 </dl>
@@ -44,6 +49,9 @@
   <tr class="rule"><td>Approved this month &mdash; deductions</td><td class="amt num">{{ view.header.co_this_deductions | money }}</td></tr>
   <tr class="key"><td>Net change (to line 2)</td><td class="amt num">{{ view.header.co_net | money }}</td></tr>
 </table>
+
+{{ contractor_certification(view) }}
+{{ architect_certificate(view) }}
 {% endmacro %}
 
 

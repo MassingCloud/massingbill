@@ -73,6 +73,35 @@
     padding-top: 2mm;
   }
 
+  /* Parties and certification blocks. */
+  .parties { margin-bottom: 4mm; table-layout: fixed; }
+  .parties td { padding: 1.5mm 2mm; vertical-align: top; width: 33.33%; }
+  .party-label { color: #555; font-size: 7pt; letter-spacing: .05em; text-transform: uppercase; }
+  .party-value { font-weight: bold; }
+  .party-address { color: #555; font-size: 8pt; }
+
+  .cert { border: .2mm solid #c8ccd2; margin-top: 5mm; padding: 3mm; page-break-inside: avoid; }
+  .cert h2 { margin-top: 0; }
+  .cert p { margin: 0 0 3mm; }
+  .cert-architect { background: #fafbfc; }
+  .cert-note { color: #555; font-size: 7.5pt; margin-bottom: 0; }
+  .hint-note { color: #555; font-size: 7.5pt; }
+  .variance { font-weight: bold; }
+
+  .signature-block { margin-top: 4mm; table-layout: fixed; }
+  .signature-block td { border: none; padding: 0 4mm 0 0; vertical-align: bottom; }
+  .sig-line { border-bottom: .3mm solid #333; min-height: 6mm; padding-bottom: .5mm; }
+  .sig-caption { color: #555; font-size: 7pt; padding-top: .8mm; }
+
+  .notary { border-top: .2mm dashed #c8ccd2; margin-top: 4mm; padding-top: 3mm; }
+  .notary-caption { color: #333; font-size: 8pt; margin: 0 0 2mm; }
+
+  .certified-amount { margin: 3mm 0; width: 90mm; }
+  .certified-amount td { border: none; padding: 1mm 0; }
+  .certified-label { font-weight: bold; letter-spacing: .04em; text-transform: uppercase; }
+  .certified-value { font-size: 12pt; font-weight: bold; }
+  .blank-rule { border-bottom: .3mm solid #333; display: inline-block; min-width: 40mm; }
+
   .page-break { break-before: page; }
   .draft-mark { color: #a4262c; font-size: 8pt; font-weight: bold; letter-spacing: .08em; }
 </style>

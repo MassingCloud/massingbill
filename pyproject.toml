@@ -147,6 +147,12 @@ ignore = [
 # list that made perfectly ordinary pasted amounts unparseable.
 "massingbill/services/renderers/*" = ["RUF001", "RUF002", "RUF003"]
 
+# The demo seeds a throwaway sign-in whose whole purpose is to be published, and
+# the site builder hands a one-shot key to an in-memory database it deletes on
+# the way out. Both are literally named after not being secrets.
+"massingbill/services/demo.py" = ["S105", "S106"]
+"scripts/build_demo_site.py" = ["S106"]
+
 [tool.mypy]
 python_version = "3.11"
 warn_unused_configs = true
