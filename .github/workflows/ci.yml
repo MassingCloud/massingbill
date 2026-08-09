@@ -210,7 +210,11 @@ jobs:
       # so pip-audit cannot look it up and fails the whole run trying.
       - run: pip install -e ".[dev]" pip-audit cyclonedx-bom
       - name: Audit dependencies
-        run: pip-audit --strict --skip-editable --progress-spinner off
+        # No `--strict`: that flag also fails the run when any dependency is
+        # *skipped*, which is precisely what `--skip-editable` does to our own
+        # package. Without it pip-audit still exits non-zero on a real
+        # vulnerability, which is the thing this job is for.
+        run: pip-audit --skip-editable --progress-spinner off
       - name: Generate SBOM
         run: cyclonedx-py environment -o sbom.json
       - uses: actions/upload-artifact@v4
