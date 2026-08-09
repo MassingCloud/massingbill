@@ -20,7 +20,7 @@ jobs:
     name: Build the demo
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the WeasyPrint native stack
         # So the published demo carries real PDFs rather than quietly omitting

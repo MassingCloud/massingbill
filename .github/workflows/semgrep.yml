@@ -20,7 +20,7 @@ jobs:
       # broke main on a commit that had not touched this file.
       image: semgrep/semgrep:1.172.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Scan
         # `semgrep ci` already exits non-zero on a blocking finding, which is
         # what `--error` used to ask for before it was removed.
