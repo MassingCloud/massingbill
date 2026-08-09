@@ -84,6 +84,8 @@ dev = [
     "types-requests",
     "types-bleach",
     "types-WTForms",
+    "pypdf>=4.0",
+    "types-openpyxl",
 ]
 
 [project.urls]
@@ -136,6 +138,15 @@ ignore = [
 # Tests assert (that is the point) and use obviously-fake credentials.
 "tests/**" = ["S101", "S105", "S106", "S311"]
 
+# The renderers produce typeset financial documents, where a true minus sign
+# (U+2212) and an em dash are correct rather than accidental -- "(4 − 5)" on a
+# payment application should not read as a hyphen.
+#
+# Scoped deliberately rather than switched off globally: RUF001 has already
+# caught a real bug here, a non-breaking space hidden in a thousands-separator
+# list that made perfectly ordinary pasted amounts unparseable.
+"massingbill/services/renderers/*" = ["RUF001", "RUF002", "RUF003"]
+
 [tool.mypy]
 python_version = "3.11"
 warn_unused_configs = true
@@ -153,6 +164,9 @@ module = [
     "flask_login.*",
     "flask_migrate.*",
     "flask_wtf.*",
+    # WeasyPrint ships no type information, and it is an optional extra that a
+    # headless deployment does not install at all.
+    "weasyprint.*",
 ]
 ignore_missing_imports = true
 

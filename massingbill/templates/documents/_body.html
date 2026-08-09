@@ -1,0 +1,138 @@
+{#
+  The document body, shared by the AIA-style and house renderers.
+
+  The two differ in wording and cover-page presentation, not in the numbers --
+  which is the point: the line structure and the arithmetic are the same
+  document however it is titled.
+#}
+
+{% macro cover(view, heading, subheading) %}
+<h1>{{ heading }}</h1>
+<p class="muted">{{ subheading }}</p>
+
+{% if view.status == "draft" %}<p class="draft-mark">DRAFT — NOT SUBMITTED</p>{% endif %}
+
+<dl class="facts">
+  <div><dt>Project</dt><dd>{{ view.project_number }} — {{ view.project_name }}</dd></div>
+  {% if view.project_address %}<div><dt>Address</dt><dd>{{ view.project_address }}</dd></div>{% endif %}
+  {% if view.contract_number %}<div><dt>Contract</dt><dd>{{ view.contract_number }}</dd></div>{% endif %}
+  <div><dt>Application no.</dt><dd>{{ view.number }}</dd></div>
+  <div><dt>Period</dt><dd>{{ view.period_label }}</dd></div>
+  <div><dt>Application date</dt><dd>{{ view.application_date.isoformat() }}</dd></div>
+  <div><dt>Retainage</dt><dd>{{ view.retainage_work | pct }} on work, {{ view.retainage_stored | pct }} on stored material</dd></div>
+</dl>
+
+<table class="g702">
+  <tr><td class="no">1</td><td>Original contract sum</td><td class="amt num">{{ view.header.money("line1") }}</td></tr>
+  <tr><td class="no">2</td><td>Net change by change orders</td><td class="amt num">{{ view.header.money("line2") }}</td></tr>
+  <tr class="rule key"><td class="no">3</td><td>Contract sum to date (1 + 2)</td><td class="amt num">{{ view.header.money("line3") }}</td></tr>
+  <tr><td class="no">4</td><td>Total completed and stored to date</td><td class="amt num">{{ view.header.money("line4") }}</td></tr>
+  <tr><td class="no">5a</td><td>Retainage, {{ view.retainage_work | pct }} of completed work</td><td class="amt num">{{ view.header.money("line5a") }}</td></tr>
+  <tr><td class="no">5b</td><td>Retainage, {{ view.retainage_stored | pct }} of stored material</td><td class="amt num">{{ view.header.money("line5b") }}</td></tr>
+  <tr class="rule"><td class="no">5</td><td>Total retainage (5a + 5b)</td><td class="amt num">{{ view.header.money("line5") }}</td></tr>
+  <tr class="key"><td class="no">6</td><td>Total earned less retainage (4 &minus; 5)</td><td class="amt num">{{ view.header.money("line6") }}</td></tr>
+  <tr><td class="no">7</td><td>Less previous certificates for payment</td><td class="amt num">{{ view.header.money("line7") }}</td></tr>
+  <tr class="rule key"><td class="no">8</td><td>Current payment due (6 &minus; 7)</td><td class="amt num">{{ view.header.money("line8") }}</td></tr>
+  <tr><td class="no">9</td><td>Balance to finish, including retainage (3 &minus; 6)</td><td class="amt num">{{ view.header.money("line9") }}</td></tr>
+</table>
+
+<h2>Change order summary</h2>
+<table class="g702">
+  <tr><td>Approved in previous months &mdash; additions</td><td class="amt num">{{ view.header.co_prev_additions | money }}</td></tr>
+  <tr><td>Approved in previous months &mdash; deductions</td><td class="amt num">{{ view.header.co_prev_deductions | money }}</td></tr>
+  <tr><td>Approved this month &mdash; additions</td><td class="amt num">{{ view.header.co_this_additions | money }}</td></tr>
+  <tr class="rule"><td>Approved this month &mdash; deductions</td><td class="amt num">{{ view.header.co_this_deductions | money }}</td></tr>
+  <tr class="key"><td>Net change (to line 2)</td><td class="amt num">{{ view.header.co_net | money }}</td></tr>
+</table>
+{% endmacro %}
+
+
+{% macro continuation(view, heading) %}
+<div class="page-break"></div>
+<h1>{{ heading }}</h1>
+<p class="muted">{{ view.project_number }} — {{ view.project_name }} · Application no. {{ view.number }} · {{ view.period_label }}</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>A<br>Item no.</th>
+      <th>B<br>Description of work</th>
+      <th>CSI</th>
+      <th class="num">C<br>Scheduled value</th>
+      <th class="num">D<br>From previous application</th>
+      <th class="num">E<br>This period</th>
+      <th class="num">F<br>Materials presently stored</th>
+      <th class="num">G<br>Total completed and stored</th>
+      <th class="num">%<br>(G / C)</th>
+      <th class="num">H<br>Balance to finish</th>
+      <th class="num">I<br>Retainage</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in view.lines %}
+    <tr>
+      <td>{{ line.item_no }}</td>
+      <td>{{ line.description }}</td>
+      <td>{{ line.csi_code }}</td>
+      <td class="num">{{ line.c | money }}</td>
+      <td class="num">{{ line.money("d") }}</td>
+      <td class="num">{{ line.money("e") }}</td>
+      <td class="num">{{ line.money("f") }}</td>
+      <td class="num">{{ line.g | money }}</td>
+      <td class="num">{{ line.percent }}</td>
+      <td class="num">{{ line.h | money }}</td>
+      <td class="num">{{ line.money("i") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="3">Totals</td>
+      <td class="num">{{ view.line_total("c") | money }}</td>
+      <td class="num">{{ view.line_total("d") | money }}</td>
+      <td class="num">{{ view.line_total("e") | money }}</td>
+      <td class="num">{{ view.line_total("f") | money }}</td>
+      <td class="num">{{ view.line_total("g") | money }}</td>
+      <td class="num"></td>
+      <td class="num">{{ view.line_total("h") | money }}</td>
+      <td class="num">{{ view.line_total("i") | money }}</td>
+    </tr>
+  </tfoot>
+</table>
+{% endmacro %}
+
+
+{% macro reconciliation(view) %}
+<div class="page-break"></div>
+<h1>Reconciliation</h1>
+<p class="muted">
+  Every figure on this application, checked against the contract, the schedule of
+  values and the preceding period. This page travels with the document so nothing
+  it reports can be discovered later.
+</p>
+
+<p class="verdict {{ 'ok' if view.tieout_ok else 'bad' }}">{{ view.tieout_summary }}</p>
+
+<table class="findings">
+  <thead>
+    <tr>
+      <th>Rule</th><th>Severity</th><th>Finding</th>
+      <th class="num">Expected</th><th class="num">Actual</th><th class="num">Difference</th>
+      <th>Reference</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for finding in view.findings %}
+    <tr>
+      <td>{{ finding.rule_id }}</td>
+      <td class="sev-{{ finding.severity }}">{{ finding.severity }}</td>
+      <td>{{ finding.message }}</td>
+      <td class="num">{% if finding.expected_cents is not none %}{{ finding.expected_cents | money }}{% endif %}</td>
+      <td class="num">{% if finding.actual_cents is not none %}{{ finding.actual_cents | money }}{% endif %}</td>
+      <td class="num">{% if finding.delta_cents is not none %}{{ finding.delta_cents | money }}{% endif %}</td>
+      <td>{{ finding.citation }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
