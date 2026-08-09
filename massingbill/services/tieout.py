@@ -38,6 +38,7 @@ from massingbill.models import (
     ApplicationStatus,
     ChangeOrder,
     ChangeOrderStatus,
+    ComplianceKind,
     RetainageMode,
     StoredMaterial,
 )
@@ -472,6 +473,10 @@ def _policy(app: Application) -> list[Finding]:
     # Stored materials: backup, and the double-bill trap.
     out.extend(_stored_material_rules(app))
 
+    # Waivers and compliance (docs/competitive-upgrades.md, U1 and U4).
+    out.extend(_waiver_rules(app))
+    out.extend(_compliance_rules(app))
+
     # SEQUENCE: gaps in application numbering.
     if contract is not None and _checks_live_data(app):
         from massingbill.services import application as application_service
@@ -574,6 +579,183 @@ def _stored_material_rules(app: Application) -> list[Finding]:
                     ),
                     citation="contract terms for off-site storage",
                     line_item=item,
+                )
+            )
+
+    return out
+
+
+# ── Waivers (competitive-upgrades.md U1) ────────────────────────────────────
+
+
+def _waiver_rules(app: Application) -> list[Finding]:
+    """Handle's "waiver protection safeguards", as tie-out rules.
+
+    A waiver states an amount and a through-date. If either disagrees with the
+    payment it releases, lien rights are being given up for work nobody has
+    paid for -- and unlike an arithmetic error, that is not discovered when the
+    next application is prepared. It is discovered when the money is gone.
+    """
+    from massingbill.services import waivers as waiver_service
+
+    out: list[Finding] = []
+    instances = waiver_service.for_application(app)
+    if not instances:
+        return out
+
+    for waiver in instances:
+        item = f"{waiver.claimant or 'claimant'} ({_waiver_label(waiver)})"
+
+        # WAIVER-AMOUNT: the release must match what is actually being paid.
+        expected = app.certified_payment_cents
+        if waiver.amount_cents != expected:
+            out.append(
+                Finding(
+                    "WAIVER-AMOUNT",
+                    Severity.ERROR if waiver.amount_cents > expected else Severity.WARNING,
+                    (
+                        f"{item}: the waiver releases {to_display(cents(waiver.amount_cents))} "
+                        f"but the payment for this period is "
+                        f"{to_display(cents(expected))}."
+                        + (
+                            " It releases more than is being paid."
+                            if waiver.amount_cents > expected
+                            else ""
+                        )
+                    ),
+                    expected=expected,
+                    actual=waiver.amount_cents,
+                    citation="a waiver must release only what is paid",
+                    line_item=item,
+                )
+            )
+
+        # WAIVER-THROUGH-DATE: a through-date before the period end leaves work
+        # in this period unreleased; after it releases work not yet billed.
+        if waiver.through_date < app.period_start:
+            out.append(
+                Finding(
+                    "WAIVER-THROUGH-DATE",
+                    Severity.WARNING,
+                    (
+                        f"{item}: the waiver runs through "
+                        f"{waiver.through_date.isoformat()}, before this period began."
+                    ),
+                    citation="waiver through-date against the billing period",
+                    line_item=item,
+                )
+            )
+        elif waiver.through_date > app.period_end:
+            out.append(
+                Finding(
+                    "WAIVER-THROUGH-DATE",
+                    Severity.ERROR,
+                    (
+                        f"{item}: the waiver runs through "
+                        f"{waiver.through_date.isoformat()}, past the end of this period. "
+                        "It would release rights for work that has not been billed."
+                    ),
+                    citation="waiver through-date against the billing period",
+                    line_item=item,
+                )
+            )
+
+        # WAIVER-DETACHED: the document was edited after it was signed.
+        if waiver.is_signed and not waiver_service.signature_is_intact(waiver):
+            out.append(
+                Finding(
+                    "WAIVER-DETACHED",
+                    Severity.ERROR,
+                    (
+                        f"{item}: the signature no longer matches the waiver text. "
+                        "The document was changed after it was signed."
+                    ),
+                    citation="the signature binds the exact rendered document",
+                    line_item=item,
+                )
+            )
+
+        # WAIVER-UNCONDITIONAL-EARLY: an unconditional waiver signed before the
+        # money arrives is the classic way a contractor loses lien rights.
+        if waiver.is_signed and not waiver.is_conditional and app.status != ApplicationStatus.PAID:
+            out.append(
+                Finding(
+                    "WAIVER-UNCONDITIONAL-EARLY",
+                    Severity.WARNING,
+                    (
+                        f"{item}: an unconditional waiver has been signed, but this "
+                        "application is not recorded as paid. An unconditional waiver "
+                        "takes effect on signature, not on payment."
+                    ),
+                    citation="conditional waivers take effect on payment",
+                    line_item=item,
+                )
+            )
+
+    return out
+
+
+def _waiver_label(waiver: Any) -> str:
+    """The waiver's type as a phrase.
+
+    Coerced back through the enum because the column is a plain string and
+    SQLAlchemy hands it back as one -- the same reason ``Role(...)`` is coerced
+    everywhere it is read.
+    """
+    from massingbill.models import WaiverType
+
+    return WaiverType(waiver.waiver_type).label.lower()
+
+
+# ── Compliance (competitive-upgrades.md U4) ─────────────────────────────────
+
+
+def _compliance_rules(app: Application) -> list[Finding]:
+    """Missing or lapsed documents, judged as at the period end.
+
+    ``blocks_payment`` decides whether a gap refuses the application or merely
+    reports it -- because a GC who has agreed to withhold funds until certified
+    payroll is in hand needs a refusal, and one who simply likes having a W-9
+    on file needs a nudge.
+    """
+    from massingbill.services import compliance as compliance_service
+
+    out: list[Finding] = []
+    if app.prime_contract is None or app.prime_contract.project is None:
+        return out
+
+    for state in compliance_service.evaluate(app):
+        # Coerced: the column is a string, so SQLAlchemy returns one.
+        label = ComplianceKind(state.requirement.kind).label
+
+        if not state.satisfied:
+            out.append(
+                Finding(
+                    "COMPLIANCE-MISSING",
+                    Severity.ERROR if state.requirement.blocks_payment else Severity.WARNING,
+                    (
+                        f"{label}: {state.reason}."
+                        + (
+                            " This document is required before payment."
+                            if state.requirement.blocks_payment
+                            else ""
+                        )
+                    ),
+                    citation="project compliance requirements",
+                    line_item=label,
+                )
+            )
+        elif state.expiring_soon:
+            out.append(
+                Finding(
+                    "COMPLIANCE-EXPIRING",
+                    Severity.WARNING,
+                    (
+                        f"{label} expires in {state.expires_in_days} day(s). "
+                        "Chase it before the next period."
+                    ),
+                    citation="project compliance requirements",
+                    line_item=label,
                 )
             )
 

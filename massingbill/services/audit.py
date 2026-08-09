@@ -55,6 +55,12 @@ CO_APPROVED = "change_order.approved"
 CO_VOIDED = "change_order.voided"
 STORED_ADDED = "stored_material.added"
 STORED_INSTALLED = "stored_material.installed"
+WAIVER_REQUESTED = "waiver.requested"
+WAIVER_SIGNED = "waiver.signed"
+WAIVER_VOIDED = "waiver.voided"
+WAIVER_TEMPLATE_VERIFIED = "waiver_template.verified"
+COMPLIANCE_REQUIRED = "compliance.required"
+COMPLIANCE_FILED = "compliance.filed"
 
 
 def _encode(value: dict[str, Any] | None) -> str:

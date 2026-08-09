@@ -1,0 +1,85 @@
+# The twelve states that prescribe waiver wording.
+#
+# Metadata is seeded accurately: citation, effective date, which waiver types
+# the statute prescribes, what fields the form must carry, and whether it must
+# be notarised.
+#
+# The BODY IS DELIBERATELY EMPTY and `verified: false`. A waiver that does not
+# substantially conform to the statute can be unenforceable, so inventing
+# plausible statutory language would release lien rights a contractor still
+# needed and nobody would find out until the money was gone. Rendering is
+# refused until someone reads the statute, enters the verbatim text, and sets
+# `verified: true`. See README.md.
+
+defaults:
+  types: [conditional_progress, unconditional_progress, conditional_final, unconditional_final]
+  required_fields: [claimant, customer, project, through_date, amount]
+  notary_required: false
+  verified: false
+  effective_from: "2000-01-01"
+
+states:
+  - state: CA
+    citation: "Cal. Civ. Code §§ 8132 (conditional progress), 8134 (unconditional progress), 8136 (conditional final), 8138 (unconditional final)"
+    must_match_exactly: true
+    note: >-
+      Four separate statutory forms. California also caps retention on private
+      works at 5% from 2026-01-01 (SB 61); see retainage_rules/.
+
+  - state: TX
+    citation: "Tex. Prop. Code § 53.284"
+    must_match_exactly: true
+    note: Four statutory forms, prescribed verbatim by the section.
+
+  - state: GA
+    citation: "O.C.G.A. § 44-14-366"
+    must_match_exactly: true
+    note: >-
+      Georgia's form carries a statutory notice in bold that must appear as
+      written; deviation has been held to void the waiver.
+
+  - state: MI
+    citation: "Mich. Comp. Laws § 570.1115"
+    must_match_exactly: true
+
+  - state: MS
+    citation: "Miss. Code Ann. § 85-7-419"
+    must_match_exactly: true
+
+  - state: AZ
+    citation: "A.R.S. § 33-1008"
+    must_match_exactly: true
+    notary_required: true
+    note: Arizona requires the waiver to be notarised.
+
+  - state: NV
+    citation: "Nev. Rev. Stat. § 108.2457"
+    must_match_exactly: true
+
+  - state: UT
+    citation: "Utah Code § 38-1a-802"
+    must_match_exactly: true
+
+  - state: WY
+    citation: "Wyo. Stat. § 29-10-101"
+    must_match_exactly: true
+
+  - state: MA
+    citation: "Mass. Gen. Laws ch. 254, § 32"
+    must_match_exactly: true
+
+  - state: FL
+    citation: "Fla. Stat. § 713.20"
+    must_match_exactly: false
+    note: >-
+      Florida prescribes a form but the statute expressly permits the parties to
+      use another. The general form is therefore an acceptable fallback here,
+      unlike in the other eleven.
+
+  - state: MO
+    citation: "Mo. Rev. Stat. § 429.016"
+    must_match_exactly: true
+    residential_only: true
+    note: >-
+      Missouri's statutory form is required on residential projects only.
+      Commercial work may use the general form.

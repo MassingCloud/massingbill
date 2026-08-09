@@ -34,6 +34,12 @@ from .change import (
     PcoStatus,
     PotentialChangeOrder,
 )
+from .compliance import (
+    COMPLIANCE_LABELS,
+    ComplianceDoc,
+    ComplianceKind,
+    ComplianceRequirement,
+)
 from .organization import (
     INTERNAL_ROLES,
     ROLE_LABELS,
@@ -56,13 +62,23 @@ from .project import (
 from .sov import CostCode, ScheduleOfValues, SovLine, SovStatus
 from .stored import StorageLocation, StoredMaterial
 from .user import User
+from .waiver import (
+    WAIVER_TYPE_LABELS,
+    Signature,
+    WaiverInstance,
+    WaiverStatus,
+    WaiverTemplate,
+    WaiverType,
+)
 
 __all__ = [
+    "COMPLIANCE_LABELS",
     "EDITABLE_STATUSES",
     "GENESIS_HASH",
     "INTERNAL_ROLES",
     "ISSUED_STATUSES",
     "ROLE_LABELS",
+    "WAIVER_TYPE_LABELS",
     "Application",
     "ApplicationLine",
     "ApplicationSnapshot",
@@ -74,6 +90,9 @@ __all__ = [
     "ChangeOrderLine",
     "ChangeOrderStatus",
     "ChangeOrderType",
+    "ComplianceDoc",
+    "ComplianceKind",
+    "ComplianceRequirement",
     "ContractParty",
     "CostCode",
     "FormStyle",
@@ -91,6 +110,7 @@ __all__ = [
     "RetainageRule",
     "Role",
     "ScheduleOfValues",
+    "Signature",
     "SoftDeleteMixin",
     "SovLine",
     "SovStatus",
@@ -99,6 +119,10 @@ __all__ = [
     "TimestampMixin",
     "User",
     "UuidPrimaryKeyMixin",
+    "WaiverInstance",
+    "WaiverStatus",
+    "WaiverTemplate",
+    "WaiverType",
     "bp_column",
     "money_column",
     "new_uuid",
