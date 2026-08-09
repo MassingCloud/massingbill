@@ -205,12 +205,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install ".[dev]" pip-audit cyclonedx-bom
+      # Installed editable so `--skip-editable` below can exclude it. The point
+      # of this job is the dependency tree; massingbill itself is not on PyPI,
+      # so pip-audit cannot look it up and fails the whole run trying.
+      - run: pip install -e ".[dev]" pip-audit cyclonedx-bom
       - name: Audit dependencies
-        # --skip-editable: the project installs itself editable, and pip-audit
-        # cannot look up a package that is not on PyPI. Auditing our own source
-        # against a vulnerability database is not the point anyway -- the
-        # dependencies are.
         run: pip-audit --strict --skip-editable --progress-spinner off
       - name: Generate SBOM
         run: cyclonedx-py environment -o sbom.json
@@ -237,6 +236,7 @@ jobs:
         run: |
           docker run -d --name massingbill-ci -p 8000:8000 \
             -e MASSINGBILL_SECRET_KEY=ci-only-secret-key-value \
+            -e MASSINGBILL_ENCRYPTION_KEY=ci-only-encryption-key-value \
             -e MASSINGBILL_SESSION_COOKIE_SECURE=false \
             massingbill:ci
           for i in $(seq 1 30); do
