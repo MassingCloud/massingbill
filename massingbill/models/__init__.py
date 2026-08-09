@@ -6,6 +6,14 @@ sees the full metadata and SQLAlchemy can resolve every string annotation.
 
 from __future__ import annotations
 
+from .apikey import (
+    ALL_WEBHOOK_EVENTS,
+    ApiKey,
+    DeliveryStatus,
+    WebhookDelivery,
+    WebhookEvent,
+    WebhookSubscription,
+)
 from .application import (
     EDITABLE_STATUSES,
     ISSUED_STATUSES,
@@ -80,6 +88,7 @@ from .waiver import (
 )
 
 __all__ = [
+    "ALL_WEBHOOK_EVENTS",
     "COMPLIANCE_LABELS",
     "EDITABLE_STATUSES",
     "GENESIS_HASH",
@@ -87,6 +96,7 @@ __all__ = [
     "ISSUED_STATUSES",
     "ROLE_LABELS",
     "WAIVER_TYPE_LABELS",
+    "ApiKey",
     "Application",
     "ApplicationLine",
     "ApplicationSnapshot",
@@ -103,6 +113,7 @@ __all__ = [
     "ComplianceRequirement",
     "ContractParty",
     "CostCode",
+    "DeliveryStatus",
     "FormStyle",
     "Invitation",
     "Membership",
@@ -138,6 +149,9 @@ __all__ = [
     "WaiverStatus",
     "WaiverTemplate",
     "WaiverType",
+    "WebhookDelivery",
+    "WebhookEvent",
+    "WebhookSubscription",
     "bp_column",
     "money_column",
     "new_uuid",

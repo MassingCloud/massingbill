@@ -15,7 +15,9 @@ from flask.testing import FlaskClient
 from massingbill.models import Role
 from massingbill.services.rbac import (
     ALL_PERMISSIONS,
+    READ_PERMISSIONS,
     ROLE_PERMISSIONS,
+    WRITE_PERMISSIONS,
     permissions_for,
 )
 from tests.factories import Tenant, add_balanced_lines, make_tenant, sign_in
@@ -64,8 +66,31 @@ def test_an_accountant_writes_the_schedule_but_does_not_approve_it() -> None:
 
 
 def test_a_viewer_cannot_write_anything() -> None:
-    granted = permissions_for(Role.VIEWER)
-    assert all(not p.endswith((":write", ":create", ":update", ":delete")) for p in granted)
+    """Checked against the enumerated write set, not against name suffixes.
+
+    ``application:submit``, ``application:certify``, ``sov:approve`` and
+    ``api:manage`` all mutate, and none of them ends in ``:write`` -- a suffix
+    heuristic would have waved every one of them past a read-only role.
+    """
+    assert not (permissions_for(Role.VIEWER) & WRITE_PERMISSIONS)
+
+
+def test_every_permission_is_classified_as_read_or_write() -> None:
+    """A permission in neither set is invisible to the viewer check above, which
+    is precisely how a mutating permission would end up granted to a reader."""
+    assert READ_PERMISSIONS | WRITE_PERMISSIONS == ALL_PERMISSIONS
+    assert not (READ_PERMISSIONS & WRITE_PERMISSIONS)
+
+
+def test_the_roles_that_may_not_submit_an_application() -> None:
+    """Separation of duties on the act that actually commits to a number.
+
+    The accountant prepares the application and records what arrives against
+    it; the PM is the one who submits it to the owner.
+    """
+    assert "application:write" in permissions_for(Role.ACCOUNTANT)
+    assert "application:submit" not in permissions_for(Role.ACCOUNTANT)
+    assert "application:submit" in permissions_for(Role.PM)
 
 
 def test_counterparties_cannot_manage_the_organization() -> None:

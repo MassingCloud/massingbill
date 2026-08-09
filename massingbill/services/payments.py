@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from massingbill.errors import ValidationError
 from massingbill.extensions import db
 from massingbill.models import Application, ApplicationStatus, Payment, PaymentMethod, User
-from massingbill.services import audit
+from massingbill.services import audit, events
 from massingbill.services.money import Cents, cents
 
 
@@ -69,6 +69,7 @@ def record(
         actor_id=actor.id if actor else None,
         actor_label=actor.email if actor else "",
     )
+    events.application_paid(application, payment)
     return payment
 
 

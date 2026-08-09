@@ -105,6 +105,10 @@ massingbill = ["templates/**/*", "static/**/*", "data/**/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+# The SDK ships beside the app rather than inside it (it is a client, and a
+# self-hoster should not have to install it). Putting it on the path here is
+# what lets the suite prove the client and the server agree.
+pythonpath = ["sdk/python"]
 markers = [
     "pdf: tests that require the WeasyPrint native stack (GTK/Pango/cairo)",
     "adapter: tests that exercise an optional adapter (SPEC.md 3.2)",
