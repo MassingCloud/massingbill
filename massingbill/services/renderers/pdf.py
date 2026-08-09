@@ -3,10 +3,15 @@
 WeasyPrint over a Jinja template, so the document is HTML and CSS and can be
 reviewed in a browser before anyone waits on a native stack.
 
-Output is deterministic: no timestamps that move, no random ids, fonts from the
-system stack only. That means two renders of the same application produce the
-same bytes, which is what lets the tests diff a document instead of merely
-asserting it is non-empty.
+**On reproducibility.** The rendered *content* is identical on every run --
+nothing in the template varies. The raw bytes are not, because WeasyPrint
+stamps a PDF creation timestamp; set ``SOURCE_DATE_EPOCH`` and they are, which
+is what an archival workflow wants.
+
+Byte-equality is not, however, what shows a document to be the one that was
+issued. The application's snapshot fingerprint does that, and it covers the
+numbers rather than the rendering -- so it survives a WeasyPrint upgrade that
+shifts a kerning pair, which byte-equality would not.
 """
 
 from __future__ import annotations

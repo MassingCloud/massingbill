@@ -29,11 +29,25 @@ ADAPTER_MODULES = {
     "massingbill.services.storage.massing_vault",
 }
 
+#: Modules that need an optional *extra* rather than an optional adapter --
+#: `massingbill[render]`. They are lazily imported by
+#: ``services/renderers/documents.py`` for exactly the same reason the adapters
+#: are: a headless API deployment installs neither, and must still boot.
+#:
+#: Listed separately from ADAPTER_MODULES because the two are different claims.
+#: An adapter is a coupling we refuse; an extra is a dependency we make optional.
+OPTIONAL_EXTRA_MODULES = {
+    "massingbill.services.renderers.pdf",
+    "massingbill.services.renderers.xlsx",
+}
+
+OPTIONAL_MODULES = ADAPTER_MODULES | OPTIONAL_EXTRA_MODULES
+
 
 def _iter_core_modules() -> list[str]:
     names: list[str] = []
     for info in pkgutil.walk_packages(massingbill.__path__, prefix="massingbill."):
-        if info.name in ADAPTER_MODULES:
+        if info.name in OPTIONAL_MODULES:
             continue
         if info.name.startswith("massingbill.services.integrations"):
             continue
@@ -59,6 +73,37 @@ def test_no_core_module_imports_an_adapter() -> None:
 
     leaked = ADAPTER_MODULES & set(sys.modules)
     assert not leaked, f"core import pulled in optional adapters: {sorted(leaked)}"
+
+
+def test_the_renderers_package_imports_without_its_extras(app: Flask) -> None:
+    """A headless deployment installs neither WeasyPrint nor openpyxl.
+
+    Importing the renderers package must still work, report honestly what it
+    can produce, and explain what is missing -- rather than exploding at import
+    and taking the whole application down with it.
+    """
+    from massingbill.services.renderers import (
+        PDF_AVAILABLE,
+        XLSX_AVAILABLE,
+        available_formats,
+        pdf_unavailable_reason,
+        xlsx_unavailable_reason,
+    )
+    from massingbill.services.renderers.documents import Format
+
+    formats = available_formats()
+
+    # These three need nothing beyond the core, so they are always on offer.
+    assert Format.CSV in formats
+    assert Format.JSON in formats
+    assert Format.HTML in formats
+
+    if not PDF_AVAILABLE:
+        assert "WeasyPrint" in pdf_unavailable_reason()
+        assert Format.PDF not in formats
+    if not XLSX_AVAILABLE:
+        assert "openpyxl" in xlsx_unavailable_reason()
+        assert Format.XLSX not in formats
 
 
 def test_default_adapters_are_the_standalone_ones(app: Flask) -> None:

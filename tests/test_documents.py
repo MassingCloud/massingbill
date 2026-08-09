@@ -16,14 +16,13 @@ from io import BytesIO, StringIO
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
-from openpyxl import load_workbook
 
 from massingbill.extensions import db
 from massingbill.models import Role
 from massingbill.services import application as app_service
 from massingbill.services import sov as sov_service
 from massingbill.services.money import cents
-from massingbill.services.renderers import PDF_AVAILABLE, available_formats
+from massingbill.services.renderers import PDF_AVAILABLE, XLSX_AVAILABLE, available_formats
 from massingbill.services.renderers import context as context_module
 from massingbill.services.renderers.context import AIA_DISCLAIMER
 from massingbill.services.renderers.documents import Format, render, render_package, store
@@ -31,6 +30,15 @@ from massingbill.services.renderers.tabular import G703_COLUMNS
 from tests.factories import Tenant, make_tenant, sign_in
 
 requires_pdf = pytest.mark.skipif(not PDF_AVAILABLE, reason="WeasyPrint native stack absent")
+
+# The rendering extras are optional by design, and the `no-adapters` CI job
+# installs the core only. Importing openpyxl at module scope made this whole
+# file collapse there with ModuleNotFoundError -- which is the same graceful
+# degradation the product promises, failing in the tests that assert it.
+requires_xlsx = pytest.mark.skipif(not XLSX_AVAILABLE, reason="openpyxl not installed")
+
+if XLSX_AVAILABLE:
+    from openpyxl import load_workbook
 
 
 @pytest.fixture
@@ -185,6 +193,7 @@ def _workbook(application):
     return load_workbook(BytesIO(render(application, Format.XLSX).content))
 
 
+@requires_xlsx
 def test_the_workbook_has_the_three_sheets(application) -> None:
     assert _workbook(application).sheetnames == [
         "G702 Application",
@@ -193,6 +202,7 @@ def test_the_workbook_has_the_three_sheets(application) -> None:
     ]
 
 
+@requires_xlsx
 def test_the_continuation_sheet_ships_live_formulas(application) -> None:
     """The most-requested export in the competitor corpus, and the most honest
     thing we produce: an owner's accountant can click a cell and see the
@@ -204,6 +214,7 @@ def test_the_continuation_sheet_ships_live_formulas(application) -> None:
     assert sheet["I6"].value == "=IF(D6=0,0,H6/D6)"  # percent complete
 
 
+@requires_xlsx
 def test_the_workbook_totals_are_formulas_not_values(application) -> None:
     sheet = _workbook(application)["G703 Continuation"]
     totals_row = 6 + 3
@@ -211,6 +222,7 @@ def test_the_workbook_totals_are_formulas_not_values(application) -> None:
     assert sheet[f"D{totals_row}"].value == f"=SUM(D6:D{totals_row - 1})"
 
 
+@requires_xlsx
 def test_the_cover_sheet_derives_from_the_continuation_sheet(application) -> None:
     sheet = _workbook(application)["G702 Application"]
     formulas = [
@@ -224,6 +236,7 @@ def test_the_cover_sheet_derives_from_the_continuation_sheet(application) -> Non
     assert any(f.count("-") == 1 and f.startswith("=C") for f in formulas), "lines 6/8/9 derive"
 
 
+@requires_xlsx
 def test_the_workbook_values_agree_with_the_engine(application) -> None:
     """The formulas must start from the right inputs, or they compute the wrong
     answer very transparently."""
@@ -234,6 +247,7 @@ def test_the_workbook_values_agree_with_the_engine(application) -> None:
     assert float(sheet["G7"].value) == 25_000.00  # column F on line 002
 
 
+@requires_xlsx
 def test_the_workbook_carries_the_disclaimer(application) -> None:
     sheet = _workbook(application)["G703 Continuation"]
     text = " ".join(
@@ -242,6 +256,7 @@ def test_the_workbook_carries_the_disclaimer(application) -> None:
     assert "not affiliated with" in text
 
 
+@requires_xlsx
 def test_the_reconciliation_sheet_lists_the_findings(application) -> None:
     sheet = _workbook(application)["Reconciliation"]
     rules = [sheet.cell(row=r, column=1).value for r in range(5, 25)]
@@ -320,13 +335,39 @@ def test_pdf_contains_the_numbers_and_the_disclaimer(app: Flask, application) ->
 
 @requires_pdf
 @pytest.mark.pdf
-def test_pdf_rendering_is_deterministic(app: Flask, application) -> None:
-    """Two renders of the same application must produce the same bytes, or the
-    document cannot be shown to be the one that was issued."""
-    first = render(application, Format.PDF).content
-    second = render(application, Format.PDF).content
+def test_pdf_content_is_stable_across_renders(app: Flask, application) -> None:
+    """The *content* is identical on every render.
 
-    assert first == second
+    The raw bytes are not, and claiming otherwise was wrong: WeasyPrint stamps
+    a creation timestamp into the PDF, so two renders a second apart differ by
+    a few bytes. CI caught it.
+
+    Byte-reproducibility is available to operators who want it, via
+    ``SOURCE_DATE_EPOCH`` (asserted below) -- but it is not what proves a
+    document is the one that was issued. The snapshot fingerprint does that,
+    and it covers the numbers rather than the rendering.
+    """
+    from pypdf import PdfReader
+
+    def text_of(content: bytes) -> str:
+        reader = PdfReader(BytesIO(content))
+        return " ".join(" ".join((page.extract_text() or "").split()) for page in reader.pages)
+
+    assert text_of(render(application, Format.PDF).content) == text_of(
+        render(application, Format.PDF).content
+    )
+
+
+@requires_pdf
+@pytest.mark.pdf
+def test_pdf_is_byte_reproducible_with_a_fixed_timestamp(
+    app: Flask, application, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WeasyPrint honours SOURCE_DATE_EPOCH, so a build that pins it gets
+    identical bytes -- which is what an archival or evidentiary workflow wants."""
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1767225600")  # 2026-01-01T00:00:00Z
+
+    assert render(application, Format.PDF).content == render(application, Format.PDF).content
 
 
 def test_pdf_reports_why_it_is_unavailable_rather_than_crashing(app: Flask, application) -> None:
@@ -383,11 +424,18 @@ def test_downloading_json(client: FlaskClient, tenant: Tenant, application) -> N
     assert len(response.headers["X-Document-SHA256"]) == 64
 
 
-def test_downloading_csv_and_xlsx(client: FlaskClient, tenant: Tenant, application) -> None:
+def test_downloading_csv(client: FlaskClient, tenant: Tenant, application) -> None:
     sign_in(client, tenant.user(Role.OWNER))
     base = f"/projects/{tenant.project.id}/applications/{application.id}/download"
 
     assert client.get(f"{base}.csv").status_code == 200
+
+
+@requires_xlsx
+def test_downloading_xlsx(client: FlaskClient, tenant: Tenant, application) -> None:
+    sign_in(client, tenant.user(Role.OWNER))
+    base = f"/projects/{tenant.project.id}/applications/{application.id}/download"
+
     assert client.get(f"{base}.xlsx").status_code == 200
 
 

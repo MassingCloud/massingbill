@@ -142,21 +142,45 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install ".[dev]"
-      - name: Import the whole package with outbound traffic dropped
+      - name: Import the whole package with every socket refused
+        # Enforced in-process rather than with iptables.
+        #
+        # The iptables version matched the runner agent's own uid, so when an
+        # import hung the REJECT rule was still in place and the runner lost
+        # communication with GitHub -- a 45-minute job and an infrastructure
+        # error instead of a test result. Patching socket.socket.connect proves
+        # exactly the same property (nothing here needs the network) without
+        # being able to take the machine down with it.
+        timeout-minutes: 5
         run: |
-          sudo iptables -I OUTPUT -m owner --uid-owner "$(id -u)" -d 0.0.0.0/0 -j REJECT
-          sudo iptables -I OUTPUT -m owner --uid-owner "$(id -u)" -d 127.0.0.0/8 -j ACCEPT
-          python -c "
-          import importlib, pkgutil, massingbill
-          for m in pkgutil.walk_packages(massingbill.__path__, 'massingbill.'):
-              if 'integrations' in m.name: continue
-              importlib.import_module(m.name)
+          python - <<'PY'
+          import importlib
+          import pkgutil
+          import socket
+
+          class NetworkUsed(RuntimeError):
+              pass
+
+          def refuse(self, address, *args, **kwargs):
+              raise NetworkUsed(f"outbound connection attempted to {address!r}")
+
+          socket.socket.connect = refuse
+          socket.create_connection = refuse
+
+          import massingbill
+
+          for module in pkgutil.walk_packages(massingbill.__path__, "massingbill."):
+              if "integrations" in module.name:
+                  continue
+              importlib.import_module(module.name)
+
           from massingbill import create_app
+
           app = create_app()
-          assert app.test_client().get('/healthz').status_code == 200
-          print('booted and served /healthz with no network')
-          "
-          sudo iptables -D OUTPUT -m owner --uid-owner "$(id -u)" -d 0.0.0.0/0 -j REJECT
+          assert app.test_client().get("/healthz").status_code == 200
+          assert app.config["MASSINGBILL_ENTITLEMENT_PROVIDER"] == "standalone"
+          print("imported every module, booted, and served /healthz with no network")
+          PY
 
   no-adapters:
     name: No adapters (delete and re-run)
