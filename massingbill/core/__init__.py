@@ -28,6 +28,19 @@ a config object, it belongs in ``services/`` instead.
 
 from __future__ import annotations
 
+import sys
+
+# ruff reads this against *this* repo's 3.11 floor and calls it dead. It is not:
+# a vendored copy runs under the consumer's interpreter, which is whatever they
+# have. That is the entire situation the guard exists for.
+if sys.version_info < (3, 11):  # noqa: UP036  # pragma: no cover
+    raise RuntimeError(
+        "massingbill.core needs Python 3.11 or newer "
+        f"(running {sys.version_info.major}.{sys.version_info.minor}). "
+        "Without the guard this surfaces as 'cannot import name StrEnum from enum', "
+        "which points at the standard library rather than at the version."
+    )
+
 from massingbill.core.enums import RetainageMode
 from massingbill.core.money import (
     Bp,
