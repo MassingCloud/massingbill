@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Lien waivers — {{ project.number }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  Lien waivers
+</nav>
+
+<h1>Lien waivers</h1>
+
+{% if unverified %}
+<section class="panel panel-bad">
+  <h2>{{ unverified|length }} statutory form(s) not yet verified</h2>
+  <p>
+    Twelve states prescribe the exact wording of a lien waiver, and a form that
+    does not substantially conform can be unenforceable. Massing Bill ships those
+    forms <strong>empty on purpose</strong> and refuses to issue them until
+    someone reads the statute and enters the verbatim text.
+  </p>
+  <p class="note">
+    Inventing plausible statutory language would release lien rights that nobody
+    would discover were gone until the money was.
+  </p>
+
+  {% if can_write %}
+  <ul class="states">
+    {% for t in unverified %}
+    <li class="state state-blocking">
+      <strong>{{ t.state }}</strong> &mdash; {{ t.waiver_type }}
+      <span class="citation">{{ t.citation }}</span>
+      <details>
+        <summary>Enter the verbatim text</summary>
+        <form method="post"
+              action="{{ url_for('workflow.verify_template', project_id=project.id, template_id=t.id) }}">
+          {{ verify_form.csrf_token }}
+          {{ m.field(verify_form.body) }}
+          {{ verify_form.submit(class="button") }}
+        </form>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if waivers %}
+<table class="grid">
+  <thead>
+    <tr><th>Claimant</th><th>Type</th><th class="num">Amount</th><th>Through</th><th>Status</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for w in waivers %}
+    <tr>
+      <td>{{ w.claimant }}</td>
+      <td>{{ w.waiver_type }}</td>
+      <td class="num">{{ w.amount_cents | money }}</td>
+      <td>{{ w.through_date }}</td>
+      <td>{{ w.status }}</td>
+      <td><a href="{{ url_for('workflow.show_waiver', project_id=project.id, waiver_id=w.id) }}">Open</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No waivers issued yet.</p>
+{% endif %}
+
+{% if can_write %}
+  {% if applications %}
+  <section class="panel">
+    <h2>Issue a waiver</h2>
+    <form method="post" action="{{ url_for('workflow.request_waiver', project_id=project.id) }}">
+      {{ form.csrf_token }}
+      <div class="field">
+        <label for="application_id">Against application</label>
+        <select id="application_id" name="application_id" class="input">
+          {% for a in applications %}
+          <option value="{{ a.id }}">#{{ a.number }} — {{ a.period_end }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="row">
+        {{ m.field(form.waiver_type) }}
+        {{ m.field(form.claimant_name) }}
+      </div>
+      <div class="row">
+        {{ m.field(form.amount) }}
+        {{ m.field(form.through_date) }}
+      </div>
+      {{ form.submit(class="button") }}
+    </form>
+  </section>
+  {% else %}
+  <p class="note">
+    A waiver is issued against an application that has been submitted. Submit one
+    first &mdash; a waiver covering a period nobody has billed releases rights
+    against an amount that does not exist yet.
+  </p>
+  {% endif %}
+{% endif %}
+{% endblock %}

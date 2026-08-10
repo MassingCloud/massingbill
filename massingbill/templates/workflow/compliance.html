@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Compliance — {{ project.number }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  Compliance
+</nav>
+
+<h1>Compliance documents</h1>
+<p class="lede">
+  What has to be on file before a period can be paid. A requirement that blocks
+  payment stops submission; one that does not raises a warning and lets the
+  billing through.
+</p>
+
+{% if requirements %}
+<table class="grid">
+  <thead>
+    <tr><th>Document</th><th>Blocks payment</th><th>On file</th><th>Expires</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for req in requirements %}
+    <tr>
+      <td>{{ req.kind_label }}</td>
+      <td>{{ "yes" if req.blocks_payment else "no" }}</td>
+      <td>
+        {% if req.documents %}{{ req.documents[0].filename }}{% else %}<span class="warn">nothing</span>{% endif %}
+      </td>
+      <td>
+        {% if req.documents and req.documents[0].expires_on %}{{ req.documents[0].expires_on }}{% else %}—{% endif %}
+      </td>
+      <td>
+        {% if can_write %}
+        <details>
+          <summary>File</summary>
+          <form method="post" action="{{ url_for('workflow.file_document', project_id=project.id, requirement_id=req.id) }}">
+            {{ document_form.csrf_token }}
+            <input type="hidden" name="kind" value="{{ req.kind }}">
+            {{ m.field(document_form.reference) }}
+            <div class="row">
+              {{ m.field(document_form.issued_on) }}
+              {{ m.field(document_form.expires_on) }}
+            </div>
+            {{ document_form.submit(class="button") }}
+          </form>
+        </details>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No requirements set for this project.</p>
+{% endif %}
+
+{% if can_write %}
+<section class="panel">
+  <h2>Add a requirement</h2>
+  <form method="post" action="{{ url_for('workflow.add_requirement', project_id=project.id) }}">
+    {{ form.csrf_token }}
+    <div class="row">
+      {{ m.field(form.kind) }}
+    </div>
+    {{ m.checkbox(form.blocks_payment) }}
+    {{ form.submit(class="button") }}
+  </form>
+</section>
+{% endif %}
+{% endblock %}

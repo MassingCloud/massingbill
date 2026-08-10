@@ -35,6 +35,14 @@
       <h2>Applications for payment</h2>
       <p class="lede">The monthly requisition, and the reconciliation that says whether it ties.</p>
       <a class="button" href="{{ url_for('applications.index', project_id=project.id) }}">Open applications</a>
+
+      <h2>Around the requisition</h2>
+      <div class="actions">
+        <a class="button button-quiet" href="{{ url_for('workflow.change_orders', project_id=project.id) }}">Change orders</a>
+        <a class="button button-quiet" href="{{ url_for('workflow.waivers', project_id=project.id) }}">Lien waivers</a>
+        <a class="button button-quiet" href="{{ url_for('workflow.compliance', project_id=project.id) }}">Compliance</a>
+        <a class="button button-quiet" href="{{ url_for('workflow.subcontracts', project_id=project.id) }}">Subcontracts</a>
+      </div>
     {% else %}
       <p class="note">
         The schedule of values has to be approved before a period can be opened

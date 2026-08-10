@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Change orders — {{ project.number }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  Change orders
+</nav>
+
+<h1>Change orders</h1>
+<dl class="facts">
+  <dt>Original contract sum</dt><dd>{{ contract.original_contract_sum_cents | money }}</dd>
+  <dt>Approved changes</dt><dd>{{ approved_total | money_paren }}</dd>
+  <dt>Contract sum to date</dt>
+  <dd>{{ (contract.original_contract_sum_cents + approved_total) | money }}</dd>
+</dl>
+
+{% if orders %}
+<table class="grid">
+  <thead>
+    <tr><th>Number</th><th>Description</th><th class="num">Amount</th><th>Status</th><th>Approved</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for co in orders %}
+    <tr>
+      <td>{{ co.number }}</td>
+      <td>
+        {{ co.description }}
+        {% if co.lines %}
+        <ul class="sublines">
+          {% for cl in co.lines %}
+          <li>
+            {{ cl.amount_cents | money_paren }} &mdash;
+            {% if cl.creates_line %}new line {{ cl.new_item_no }}{% else %}adjusts an existing line{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </td>
+      <td class="num">{{ co.amount_cents | money_paren }}</td>
+      <td>{{ co.status }}</td>
+      <td>{{ co.approved_date or "—" }}</td>
+      <td>
+        {% if can_approve and co.status == "draft" and co.lines %}
+        <form method="post" action="{{ url_for('workflow.approve_change_order', project_id=project.id, order_id=co.id) }}">
+          {{ approve_form.csrf_token }}
+          {{ approve_form.approved_date(class="input") }}
+          <button type="submit" class="button">Approve</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No change orders yet.</p>
+{% endif %}
+
+{% if not has_approved_schedule %}
+<p class="note">
+  A change order rewrites the schedule of values, so the schedule has to be
+  approved before one can be approved against it.
+</p>
+{% endif %}
+
+{% if can_write %}
+<section class="panel">
+  <h2>New change order</h2>
+  <form method="post" action="{{ url_for('workflow.create_change_order', project_id=project.id) }}">
+    {{ form.csrf_token }}
+    <div class="row">
+      {{ m.field(form.number) }}
+      {{ m.field(form.description) }}
+    </div>
+    {{ form.submit(class="button") }}
+  </form>
+</section>
+
+{% for co in orders if co.status == "draft" %}
+<section class="panel">
+  <h2>Add a line to {{ co.number }}</h2>
+  <p class="note">
+    A line either adjusts an existing schedule line or creates a new one.
+    Choosing both would apply the amount twice; choosing neither applies it
+    nowhere.
+  </p>
+  <form method="post" action="{{ url_for('workflow.add_change_order_line', project_id=project.id, order_id=co.id) }}">
+    {{ line_form.csrf_token }}
+    <div class="row">
+      {{ m.field(line_form.amount) }}
+      {{ m.field(line_form.sov_line_id) }}
+    </div>
+    <div class="row">
+      {{ m.field(line_form.new_item_no) }}
+      {{ m.field(line_form.description) }}
+      {{ m.field(line_form.csi_code) }}
+    </div>
+    {{ line_form.submit(class="button") }}
+  </form>
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -139,7 +139,7 @@
   <ul class="states">
     {% for state in compliance %}
     <li class="state state-{{ 'ok' if state.satisfied else ('blocking' if state.blocks else 'warn') }}">
-      {{ state.requirement.kind.label }} &mdash;
+      {{ state.requirement.kind_label }} &mdash;
       {% if state.satisfied %}
         on file{% if state.expiring_soon %}, expires in {{ state.expires_in_days }} days{% endif %}
       {% else %}{{ state.reason }}{% endif %}
@@ -157,7 +157,7 @@
     <tbody>
       {% for w in waivers %}
       <tr>
-        <td>{{ w.claimant_name }}</td>
+        <td>{{ w.claimant }}</td>
         <td>{{ w.waiver_type }}</td>
         <td class="num">{{ w.amount_cents | money }}</td>
         <td>{{ w.through_date }}</td>

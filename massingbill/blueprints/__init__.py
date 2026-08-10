@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Flask
 
-from . import api, applications, auth, documents, health, main, projects, sov
+from . import api, applications, auth, documents, health, main, projects, sov, workflow
 
 
 def register_blueprints(app: Flask) -> None:
@@ -15,6 +15,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(sov.bp)
     app.register_blueprint(applications.bp)
     app.register_blueprint(documents.bp)
+    app.register_blueprint(workflow.bp)
     api.register_api(app)
 
 

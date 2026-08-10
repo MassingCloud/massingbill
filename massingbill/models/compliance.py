@@ -83,6 +83,19 @@ class ComplianceRequirement(UuidPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="requirement", cascade="all, delete-orphan"
     )
 
+    @property
+    def kind_label(self) -> str:
+        """The human name, whether ``kind`` is an enum or a string.
+
+        A ``Mapped[ComplianceKind]`` over a ``String`` column writes correctly --
+        a ``StrEnum`` *is* a ``str`` -- but reads back as a plain ``str``. So
+        ``requirement.kind.label`` works on a row still in the identity map and
+        raises ``AttributeError`` on the same row loaded from the database,
+        which is a failure that no test creating its own data will ever see.
+        Coercing here mirrors ``Role(membership.role)`` in ``services/rbac.py``.
+        """
+        return ComplianceKind(self.kind).label
+
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<ComplianceRequirement {self.kind}>"
 

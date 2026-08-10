@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Subcontracts — {{ project.number }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  Subcontracts
+</nav>
+
+<h1>Subcontracts</h1>
+<dl class="facts">
+  <dt>Committed</dt><dd>{{ committed | money }}</dd>
+  <dt>Subcontracts</dt><dd>{{ subcontracts|length }}</dd>
+</dl>
+
+<p class="note">
+  Subcontractors are counterparties here, not customers. They are never charged
+  to use this, and nothing on this page bills them &mdash; the general
+  contractor is the customer.
+</p>
+
+{% if subcontracts %}
+{% for sub in subcontracts %}
+<section class="panel">
+  <h2>{{ sub.number }} &mdash; {{ sub.vendor_name }}</h2>
+  <dl class="facts">
+    <dt>Amount</dt><dd>{{ sub.current_amount_cents | money }}</dd>
+    <dt>Retainage</dt><dd>{{ sub.retainage_rate_bp | pct }}</dd>
+    <dt>Status</dt><dd>{{ sub.status }}</dd>
+  </dl>
+
+  {% if sub.billings %}
+  <table class="grid">
+    <thead>
+      <tr><th>Through</th><th class="num">Completed</th><th class="num">Retainage</th><th class="num">Due</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for b in sub.billings %}
+      <tr>
+        <td>{{ b.period_end }}</td>
+        <td class="num">{{ b.completed_to_date_cents | money }}</td>
+        <td class="num">{{ b.retainage_cents | money }}</td>
+        <td class="num">{{ b.amount_due_cents | money }}</td>
+        <td>{{ b.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if can_write %}
+  <details>
+    <summary>Record a billing</summary>
+    <p class="note">
+      Retainage is recomputed from the subcontract rather than taken from the
+      paperwork: what the subcontract says is withheld is what gets withheld.
+    </p>
+    <form method="post" action="{{ url_for('workflow.receive_billing', project_id=project.id, subcontract_id=sub.id) }}">
+      {{ billing_form.csrf_token }}
+      <div class="row">
+        {{ m.field(billing_form.amount) }}
+        {{ m.field(billing_form.period_end) }}
+      </div>
+      {{ billing_form.submit(class="button") }}
+    </form>
+  </details>
+  {% endif %}
+</section>
+{% endfor %}
+{% else %}
+<p class="empty">No subcontracts yet.</p>
+{% endif %}
+
+{% if can_write %}
+<section class="panel">
+  <h2>New subcontract</h2>
+  <form method="post" action="{{ url_for('workflow.create_subcontract', project_id=project.id) }}">
+    {{ form.csrf_token }}
+    <div class="row">
+      {{ m.field(form.number) }}
+      {{ m.field(form.vendor_name) }}
+      {{ m.field(form.vendor_email) }}
+    </div>
+    <div class="row">
+      {{ m.field(form.amount) }}
+      {{ m.field(form.retainage_bp) }}
+    </div>
+    {{ m.field(form.scope) }}
+    {{ form.submit(class="button") }}
+  </form>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Waiver — {{ waiver.claimant }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  <a href="{{ url_for('workflow.waivers', project_id=project.id) }}">Waivers</a> /
+  {{ waiver.claimant }}
+</nav>
+
+<h1>{{ waiver.waiver_type }}</h1>
+<dl class="facts">
+  <dt>Claimant</dt><dd>{{ waiver.claimant }}</dd>
+  <dt>Customer</dt><dd>{{ waiver.customer }}</dd>
+  <dt>Amount</dt><dd>{{ waiver.amount_cents | money }}</dd>
+  <dt>Through</dt><dd>{{ waiver.through_date }}</dd>
+  <dt>Status</dt><dd>{{ waiver.status }}</dd>
+</dl>
+
+{# The signature covers these exact bytes, so they are shown verbatim and
+   never re-flowed or re-rendered from a template on this page. #}
+<section class="panel">
+  <h2>The document</h2>
+  <pre class="document">{{ waiver.rendered_body }}</pre>
+  <p class="note">SHA-256 {{ waiver.rendered_sha256 }}</p>
+</section>
+
+{% if waiver.is_signed %}
+<section class="panel panel-{{ 'ok' if intact else 'bad' }}">
+  <h2>Signature</h2>
+  {% if intact %}
+    <p>
+      Signed by {{ waiver.signature.signer_name }}
+      {% if waiver.signature.signer_title %}({{ waiver.signature.signer_title }}){% endif %}
+      on {{ waiver.signature.signed_at }}.
+    </p>
+    <p class="note">
+      The signature covers the document above, unchanged. Consent was recorded
+      at signing, from {{ waiver.signature.ip or "an unrecorded address" }}.
+    </p>
+  {% else %}
+    <p>
+      <strong>This document no longer matches what was signed.</strong>
+      The stored signature covers a different set of bytes, so it cannot be
+      relied on. Re-issue the waiver and have it signed again.
+    </p>
+  {% endif %}
+</section>
+
+{% elif can_write %}
+<section class="panel">
+  <h2>Sign</h2>
+  <p class="note">
+    Typing your name below is your signature under ESIGN/UETA. What is recorded
+    is the document above, its digest, your consent, and the time and address it
+    came from &mdash; which together are what makes it provable later.
+  </p>
+  <form method="post" action="{{ url_for('workflow.sign_waiver', project_id=project.id, waiver_id=waiver.id) }}">
+    {{ form.csrf_token }}
+    <div class="row">
+      {{ m.field(form.signer_name) }}
+      {{ m.field(form.signer_title) }}
+      {{ m.field(form.signer_email) }}
+    </div>
+    {{ m.field(form.typed_signature) }}
+    {{ m.checkbox(form.intent) }}
+    {{ form.submit(class="button") }}
+  </form>
+</section>
+{% endif %}
+{% endblock %}
