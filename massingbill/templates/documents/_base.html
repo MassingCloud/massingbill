@@ -1,0 +1,115 @@
+{#
+  Shared skeleton for every rendered document.
+
+  Print CSS is inline rather than linked: WeasyPrint resolves relative URLs
+  against a base that varies by caller, and a document that silently loses its
+  stylesheet still renders -- just illegibly, in a PDF someone sends to an owner.
+#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ view.title }} — {{ view.project_number }}</title>
+<style>
+  @page {
+    size: letter landscape;
+    margin: 14mm 12mm 18mm;
+    @bottom-left {
+      content: "{{ view.project_number }} · {{ view.title }} · {{ view.period_label }}";
+      font: 7pt/1.2 sans-serif; color: #666;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font: 7pt/1.2 sans-serif; color: #666;
+    }
+  }
+  @page :first { size: letter portrait; }
+
+  * { box-sizing: border-box; }
+  body { color: #111; font: 9pt/1.35 "DejaVu Sans", Arial, sans-serif; margin: 0; }
+
+  h1 { font-size: 15pt; margin: 0 0 2mm; }
+  h2 { font-size: 10pt; letter-spacing: .04em; margin: 6mm 0 2mm; text-transform: uppercase; }
+  .muted { color: #555; }
+
+  .facts { display: table; margin-bottom: 4mm; width: 100%; }
+  .facts div { display: table-row; }
+  .facts dt, .facts dd { display: table-cell; padding: .4mm 0; }
+  .facts dt { color: #555; padding-right: 6mm; white-space: nowrap; width: 34mm; }
+
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: .2mm solid #c8ccd2; padding: 1.1mm 1.6mm; vertical-align: top; }
+  thead th { background: #f2f4f7; font-size: 7.5pt; text-align: left; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+
+  /* Tabular figures keep decimal points aligned down the column, so a wrong
+     magnitude is visible at a glance rather than needing to be read. */
+  .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  tfoot td, tfoot th { background: #f8f9fb; font-weight: bold; }
+
+  .g702 { width: 118mm; }
+  .g702 td { border: none; padding: .7mm 0; }
+  .g702 .no { color: #555; width: 9mm; }
+  .g702 .amt { text-align: right; width: 32mm; }
+  .g702 .rule td { border-top: .2mm solid #c8ccd2; }
+  .g702 .key td { font-weight: bold; }
+
+  .findings td { font-size: 8pt; }
+  .sev-error { color: #a4262c; font-weight: bold; }
+  .sev-warning { color: #8a6d00; }
+  .sev-info { color: #555; }
+
+  .verdict { font-weight: bold; margin: 2mm 0 4mm; }
+  .verdict.ok { color: #1a7f37; }
+  .verdict.bad { color: #a4262c; }
+
+  .disclaimer {
+    border-top: .2mm solid #c8ccd2;
+    color: #555;
+    font-size: 7pt;
+    line-height: 1.3;
+    margin-top: 8mm;
+    padding-top: 2mm;
+  }
+
+  /* Parties and certification blocks. */
+  .parties { margin-bottom: 4mm; table-layout: fixed; }
+  .parties td { padding: 1.5mm 2mm; vertical-align: top; width: 33.33%; }
+  .party-label { color: #555; font-size: 7pt; letter-spacing: .05em; text-transform: uppercase; }
+  .party-value { font-weight: bold; }
+  .party-address { color: #555; font-size: 8pt; }
+
+  .cert { border: .2mm solid #c8ccd2; margin-top: 5mm; padding: 3mm; page-break-inside: avoid; }
+  .cert h2 { margin-top: 0; }
+  .cert p { margin: 0 0 3mm; }
+  .cert-architect { background: #fafbfc; }
+  .cert-note { color: #555; font-size: 7.5pt; margin-bottom: 0; }
+  .hint-note { color: #555; font-size: 7.5pt; }
+  .variance { font-weight: bold; }
+
+  .signature-block { margin-top: 4mm; table-layout: fixed; }
+  .signature-block td { border: none; padding: 0 4mm 0 0; vertical-align: bottom; }
+  .sig-line { border-bottom: .3mm solid #333; min-height: 6mm; padding-bottom: .5mm; }
+  .sig-caption { color: #555; font-size: 7pt; padding-top: .8mm; }
+
+  .notary { border-top: .2mm dashed #c8ccd2; margin-top: 4mm; padding-top: 3mm; }
+  .notary-caption { color: #333; font-size: 8pt; margin: 0 0 2mm; }
+
+  .certified-amount { margin: 3mm 0; width: 90mm; }
+  .certified-amount td { border: none; padding: 1mm 0; }
+  .certified-label { font-weight: bold; letter-spacing: .04em; text-transform: uppercase; }
+  .certified-value { font-size: 12pt; font-weight: bold; }
+  .blank-rule { border-bottom: .3mm solid #333; display: inline-block; min-width: 40mm; }
+
+  .page-break { break-before: page; }
+  .draft-mark { color: #a4262c; font-size: 8pt; font-weight: bold; letter-spacing: .08em; }
+</style>
+</head>
+<body>
+{% block content %}{% endblock %}
+
+{# Not configurable, and asserted by a test. docs/legal-forms-policy.md #}
+<p class="disclaimer">{{ view.disclaimer }}</p>
+</body>
+</html>

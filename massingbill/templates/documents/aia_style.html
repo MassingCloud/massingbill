@@ -1,0 +1,17 @@
+{#
+  The AIA-style renderer.
+
+  Our own typography and layout, carrying the G702 line structure and the G703
+  column structure. It reproduces no AIA form artwork and no AIA certification
+  wording -- see docs/legal-forms-policy.md. The disclaimer in _base.html is not
+  removable, and a test asserts it.
+#}
+{% extends "documents/_base.html" %}
+{% from "documents/_body.html" import cover, continuation, reconciliation %}
+
+{% block content %}
+{{ cover(view, "Application and Certificate for Payment",
+         "Following the AIA G702 line structure") }}
+{{ continuation(view, "Continuation Sheet") }}
+{{ reconciliation(view) }}
+{% endblock %}

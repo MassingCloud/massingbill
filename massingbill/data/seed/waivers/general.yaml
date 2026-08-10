@@ -1,0 +1,113 @@
+# The general form, for the thirty-eight states with no prescribed wording.
+#
+# Complete and verified: this text is ours, not a statute's, so there is nothing
+# to get wrong by quoting it imperfectly. Projects in the twelve
+# prescribed-form states get their own file and will refuse to render until the
+# statutory text has been entered and checked -- see README.md.
+
+state: ""          # empty means "any jurisdiction with no prescribed form"
+is_statutory: false
+citation: ""
+effective_from: "2000-01-01"
+verified: true
+
+types:
+  conditional_progress:
+    title: Conditional Waiver and Release on Progress Payment
+    notary_required: false
+    required_fields: [claimant, customer, project, through_date, amount]
+    body: |
+      This document waives and releases lien, stop payment notice, and payment
+      bond rights the claimant has for labor and service provided, and equipment
+      and material delivered, to the customer on this job through the Through
+      Date of this document. Rights based upon labor or service provided, or
+      equipment or material delivered, pursuant to a written change order that
+      has been fully executed by the parties prior to the date that this
+      document is signed by the claimant, are waived and released by this
+      document, unless listed as an Exception below.
+
+      **This document is effective only on the claimant's receipt of payment
+      from the financial institution on which the following check is drawn.**
+
+      Claimant:        {{ claimant }}
+      Customer:        {{ customer }}
+      Project:         {{ project }}
+      Through Date:    {{ through_date }}
+      Amount of Check: {{ amount }}
+
+      Exceptions: this document does not affect any of the following:
+      (1) retentions withheld before or after the Through Date;
+      (2) extras for which the claimant has not received payment;
+      (3) the claimant's rights for work performed after the Through Date.
+
+  unconditional_progress:
+    title: Unconditional Waiver and Release on Progress Payment
+    notary_required: false
+    required_fields: [claimant, customer, project, through_date, amount]
+    body: |
+      **NOTICE: THIS DOCUMENT WAIVES THE CLAIMANT'S LIEN, STOP PAYMENT NOTICE,
+      AND PAYMENT BOND RIGHTS EFFECTIVE ON RECEIPT OF PAYMENT. A PERSON SHOULD
+      NOT RELY ON THIS DOCUMENT UNLESS SATISFIED THAT THE CLAIMANT HAS BEEN
+      PAID.**
+
+      This document waives and releases lien, stop payment notice, and payment
+      bond rights the claimant has for labor and service provided, and equipment
+      and material delivered, to the customer on this job through the Through
+      Date of this document.
+
+      The claimant has received the following progress payment:
+
+      Claimant:      {{ claimant }}
+      Customer:      {{ customer }}
+      Project:       {{ project }}
+      Through Date:  {{ through_date }}
+      Amount Paid:   {{ amount }}
+
+      Exceptions: this document does not affect any of the following:
+      (1) retentions withheld before or after the Through Date;
+      (2) extras for which the claimant has not received payment;
+      (3) the claimant's rights for work performed after the Through Date.
+
+  conditional_final:
+    title: Conditional Waiver and Release on Final Payment
+    notary_required: false
+    required_fields: [claimant, customer, project, amount]
+    body: |
+      This document waives and releases lien, stop payment notice, and payment
+      bond rights the claimant has for all labor and service provided, and
+      equipment and material delivered, to the customer on this job.
+
+      **This document is effective only on the claimant's receipt of payment
+      from the financial institution on which the following check is drawn.**
+
+      Claimant:        {{ claimant }}
+      Customer:        {{ customer }}
+      Project:         {{ project }}
+      Amount of Check: {{ amount }}
+
+      Exceptions: this document does not affect disputed claims for extras in
+      the amount of {{ disputed_amount }}.
+
+  unconditional_final:
+    title: Unconditional Waiver and Release on Final Payment
+    notary_required: false
+    required_fields: [claimant, customer, project, amount]
+    body: |
+      **NOTICE: THIS DOCUMENT WAIVES THE CLAIMANT'S LIEN, STOP PAYMENT NOTICE,
+      AND PAYMENT BOND RIGHTS EFFECTIVE ON RECEIPT OF PAYMENT. A PERSON SHOULD
+      NOT RELY ON THIS DOCUMENT UNLESS SATISFIED THAT THE CLAIMANT HAS BEEN
+      PAID.**
+
+      This document waives and releases lien, stop payment notice, and payment
+      bond rights the claimant has for all labor and service provided, and
+      equipment and material delivered, to the customer on this job.
+
+      The claimant has been paid in full.
+
+      Claimant:    {{ claimant }}
+      Customer:    {{ customer }}
+      Project:     {{ project }}
+      Amount Paid: {{ amount }}
+
+      Exceptions: this document does not affect disputed claims for extras in
+      the amount of {{ disputed_amount }}.

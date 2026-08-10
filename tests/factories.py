@@ -67,6 +67,9 @@ def make_tenant(slug: str, *, contract_sum_cents: int = 1_245_000_000) -> Tenant
         number="2026-001",
         # Distinct per tenant so a leak test cannot pass by coincidence.
         name=f"{slug.title()} Riverside Medical Office Building",
+        # A real project has an address, and several states require the property
+        # to be identified on a waiver -- the PARTY/ADDRESS rules say so.
+        address="1400 Riverside Drive, Sacramento, CA 95811",
         jurisdiction_state="CA",
     )
     db.session.add(project)

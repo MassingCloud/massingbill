@@ -10,6 +10,10 @@ general contractor can run themselves.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
+**[See a worked six-month project →](https://massingcloud.github.io/massingbill/)**
+Real output from the real engine: G702/G703 applications, live-formula
+spreadsheets, and the reconciliation page no competitor ships.
+
 ---
 
 ## Standalone. Actually standalone.
@@ -23,6 +27,18 @@ docker compose up
 ```
 
 That is the whole install — <http://localhost:8000>.
+
+Then seed a worked project to look at:
+
+```bash
+docker compose exec app massingbill demo
+```
+
+Six periods on a $4,850,000 job, exercising a change order that adds a line,
+stored material that later installs, a deductive change order, and an architect
+certifying less than was applied for. The same project is published at
+[massingcloud.github.io/massingbill](https://massingcloud.github.io/massingbill/)
+if you would rather just read it.
 
 Massing Bill *can* connect to [massing.cloud](https://massing.cloud) for
 single sign-on, entitlements and vault storage, but every one of those is an
@@ -56,25 +72,35 @@ tie-out rule set; the G702/G703 layout is one of several renderers over it.
 
 ## Status
 
-**Phases P0 (foundation) and P1 (money kernel) are complete.** The application
-factory, adapter seams, security posture, container and CI are in place, and the
-arithmetic every pay application rests on is written and exhaustively tested.
-The domain model lands in P2–P4.
+**The engine, the documents, the workflow services and the API are done.** A
+ten-period golden project with hand-computed G702 headers reproduces every
+figure exactly, every period passes tie-out, and the
+[published demo](https://massingcloud.github.io/massingbill/) is that same
+engine's real output.
 
-See [`SPEC.md`](SPEC.md) for the full plan: research, data model, the money
-kernel, the tie-out rule reference, the testing strategy and the phase-by-phase
-acceptance criteria.
+What remains is the web UI over the P6 workflow services — waivers, compliance,
+subcontracts and payments are built and tested, but reachable today through the
+REST API and the CLI rather than through a screen.
+
+See [`SPEC.md`](SPEC.md) for the full plan and the phase-by-phase acceptance
+criteria, [`docs/competitive-upgrades.md`](docs/competitive-upgrades.md) for the
+Textura / GCPay / Handle review that shaped the later phases, and
+[`docs/massing-integration.md`](docs/massing-integration.md) for what folding
+this back into massing.cloud actually requires.
 
 | Phase | Scope | State |
 |---|---|---|
 | P0 | Foundation, adapters, CI, container | **done** |
 | P1 | Money kernel | **done** |
-| P2 | Orgs, RBAC, projects, schedule of values | next |
-| P3 | The requisition engine (G702/G703, retainage, change orders) | |
-| P4 | Tie-out rule engine | |
-| P5 | PDF / XLSX / CSV / JSON documents | |
-| P6 | Workflow, lien waivers, compliance, subcontractors, e-signature | |
-| P7 | REST API, webhooks, OIDC, S3, Procore / QuickBooks / Sage | |
+| P2 | Orgs, RBAC, projects, schedule of values, audit chain | **done** |
+| P3 | The requisition engine (G702/G703, retainage, change orders, stored materials) | **done** |
+| P4 | Tie-out rule engine — 35 rules | **done** |
+| P5 | PDF / XLSX / CSV / JSON documents | **done** |
+| P6 | Lien waivers, e-signature, compliance, subcontracts, payments | **services done** |
+| P7a | REST API, API keys, webhooks, OpenAPI 3.1, Python SDK | **done** |
+| P6 | The web UI over those services | next |
+| P6.5 | Statutory deadline engine | |
+| P7b | OIDC, S3, Procore / QuickBooks / Sage adapters | |
 | P8 | Hardening, ops runbook, **v1.0.0** | |
 | P9–P10 | *Optional:* massing.cloud adapter, WordPress bridge | |
 
@@ -107,6 +133,44 @@ PDF rendering needs the WeasyPrint native stack (pango, cairo). Install
 `.[render]` and the system libraries, or just use the container — the image
 carries them.
 
+## The API
+
+`/api/massingbill/v1`, documented in
+[`docs/openapi/massingbill-v1.yaml`](docs/openapi/massingbill-v1.yaml) and
+CI-checked against Flask's own URL map in both directions — an undocumented
+route and a documented route that does not exist are both build failures.
+
+```bash
+massingbill apikey mint --organization <id> --name "ERP sync" --scope application:read
+```
+
+The token is printed once; only its SHA-256 digest is stored. Keys are
+organization-scoped, carry explicit scopes drawn from the same vocabulary as
+roles, and default to read-only when no scope is given.
+
+```python
+from massingbill_client import MassingBillClient
+
+client = MassingBillClient(api_key="mbil_...")
+for application in client.applications(status="submitted"):
+    report = client.tieout(application["id"])
+    if not report["ok"]:
+        print(application["number"], report["summary"])
+```
+
+**Every amount is an object** carrying `cents` (integer, authoritative) and
+`amount` (decimal string). There is no floating-point money anywhere in the API,
+in either direction.
+
+**Webhooks** are queued in the same transaction as the change that caused them
+and sent by `massingbill webhooks drain`, never inside a request — an event
+announced before its transaction commits may announce something that then rolls
+back. Signing is lowercase hex HMAC-SHA256 of the raw body in
+`X-Massing-Signature`, byte-identical to massing.cloud's scheme, and the test
+suite verifies it against massing's own published verifier. Failed deliveries
+retry with exponential backoff, and the delivery log keeps what was actually
+sent — "did you send it?" is the first question in every integration dispute.
+
 ## Configuration
 
 Everything has a working default; see [`.env.example`](.env.example) for the
@@ -118,20 +182,30 @@ full surface. The three that matter:
 | `MASSINGBILL_STORAGE_BACKEND` | `local` | Protected local filesystem |
 | `MASSINGBILL_OIDC_PROVIDERS` | *(empty)* | Empty means local password accounts only |
 
-`MASSINGBILL_SECRET_KEY` is the one value required in production; the container
-refuses to start without it. Generate one with `massingbill gen-secret`.
+Two values are required in production, and the container refuses to start
+without either: `MASSINGBILL_SECRET_KEY` (signs sessions) and
+`MASSINGBILL_ENCRYPTION_KEY` (encrypts TOTP seeds and integration tokens at
+rest). They are separate on purpose — rotating a session key must not lock every
+user out of two-factor. Generate a value for each with `massingbill gen-secret`.
 
 ## A note on the AIA forms
 
-AIA G702® and G703® are copyrighted documents of The American Institute of
-Architects, and reproducing them requires a licence from the AIA.
+AIA G702® and G703® are published by The American Institute of Architects, which
+asserts copyright in them and licenses their use.
 
-Massing Bill models the **line structure and the arithmetic**, which is not what
-copyright protects. It does not reproduce AIA form artwork or certification
-wording, and every rendered document carries a disclaimer that cannot be removed
-from the AIA-style renderer. A house-style renderer, a custom renderer that maps
-onto whatever form your GC requires, and a G703-column-ordered XLSX export (so a
-licence holder can populate their own official document) all ship alongside it.
+Massing Bill implements the **line structure and the arithmetic**, and writes
+every word itself. That distinction is not wishful: under *Baker v. Selden* and
+[37 C.F.R. § 202.1(c)](https://www.ecfr.gov/current/title-37/chapter-II/subchapter-A/part-202/section-202.1),
+"blank forms… designed for recording information" are not copyrightable — a
+ruled grid follows from the arithmetic it records. What *is* protected is the
+expressive prose: certification wording, instructions, artwork. **Every
+certification paragraph in this product was written from scratch**, and no AIA
+artwork, wording or mark appears in it.
+
+Every rendered document carries a disclaimer that cannot be removed from any
+renderer. A house-style renderer, a custom renderer that maps onto whatever form
+your GC requires, and a G703-column-ordered XLSX export (so a licence holder can
+populate their own official document) all ship alongside it.
 
 **Massing Bill is not affiliated with, endorsed by, or sponsored by The American
 Institute of Architects.** See [`docs/legal-forms-policy.md`](docs/legal-forms-policy.md).
