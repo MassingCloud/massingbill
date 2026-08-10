@@ -17,8 +17,26 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Import the core whether this file is run in place or vendored beside it.
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+def _locate_core() -> None:
+    """Put the directory containing the ``massingbill`` package on the path.
+
+    Searched for rather than computed from a fixed depth, because a consumer may
+    keep this file next to the core or move it flat into their own test
+    directory -- modelmaker requires flat, namespaced test modules -- and a
+    hard-coded ``parents[3]`` is right in exactly one of those layouts.
+    """
+    for parent in [Path.cwd(), *Path(__file__).resolve().parents]:
+        if (parent / "massingbill" / "core" / "requisition.py").exists():
+            sys.path.insert(0, str(parent))
+            return
+    raise SystemExit(
+        "Could not find the massingbill package. Run this from a directory "
+        "containing massingbill/core/, or leave it beside the core."
+    )
+
+
+_locate_core()
 
 from massingbill.core.enums import RetainageMode
 from massingbill.core.money import cents
