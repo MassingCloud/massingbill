@@ -70,7 +70,10 @@ server = ["gunicorn>=21.2"]
 # (pango/cairo) that a headless API-only deployment does not.
 render = ["WeasyPrint>=61.0", "openpyxl>=3.1"]
 # Optional adapters (SPEC.md 3.2). The core must import and test without these.
-oidc = ["Authlib>=1.3,<2.0", "requests>=2.31"]
+# joserfc is declared rather than left to Authlib: the adapter imports it
+# directly, and depending on a transitive dependency is how a minor release
+# of the parent removes it out from under you.
+oidc = ["Authlib>=1.3,<2.0", "joserfc>=1.0", "requests>=2.31"]
 s3 = ["boto3>=1.34"]
 dev = [
     "pytest>=8.0",
@@ -178,6 +181,12 @@ module = [
     # WeasyPrint ships no type information, and it is an optional extra that a
     # headless deployment does not install at all.
     "weasyprint.*",
+    # boto3/botocore ship no py.typed. The alternative is boto3-stubs, an
+    # enormous generated package, pulled in to type one adapter that a
+    # standalone install does not even have.
+    "boto3.*",
+    "botocore.*",
+    "joserfc.*",
 ]
 ignore_missing_imports = true
 
