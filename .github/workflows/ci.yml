@@ -20,7 +20,7 @@ jobs:
     name: Lint and type check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -42,7 +42,7 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the WeasyPrint native stack
         # This is what makes PDF export work. Installing it here means the
@@ -96,7 +96,7 @@ jobs:
     # `line_total * rate` in a view helper is exactly how a pay app ends up a
     # penny off and gets rejected.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -136,7 +136,7 @@ jobs:
     # blocks sockets in conftest; this job proves the *installed* package needs
     # nothing at import time either, with the network genuinely unavailable.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -193,7 +193,7 @@ jobs:
     # The standalone promise, gate 2 of 3. If the core has quietly grown a
     # dependency on an optional adapter, this fails.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -216,7 +216,7 @@ jobs:
     # The standalone promise, gate 3 of 3. Coupling becomes a build failure
     # rather than a code-review opinion.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -228,7 +228,7 @@ jobs:
     name: Migrations (up, down, up)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -255,7 +255,7 @@ jobs:
     name: Dependency audit and SBOM
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -282,8 +282,8 @@ jobs:
     name: Container builds and serves
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: Build
         uses: docker/build-push-action@v7
         with:
