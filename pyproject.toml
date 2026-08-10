@@ -163,6 +163,12 @@ ignore = [
 # Tests assert (that is the point) and use obviously-fake credentials.
 "tests/**" = ["S101", "S105", "S106", "S311"]
 
+# The core's own suite, which ships with the vendored core. It lives inside the
+# package rather than in tests/ because it travels with the code it covers, and
+# it is deliberately pytest-free -- plain asserts and a __main__ runner -- so it
+# runs in a consumer's harness whatever that harness is.
+"massingbill/core/tests/**" = ["S101", "E402"]
+
 # The renderers produce typeset financial documents, where a true minus sign
 # (U+2212) and an em dash are correct rather than accidental -- "(4 − 5)" on a
 # payment application should not read as a hyphen.

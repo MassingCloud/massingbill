@@ -2,7 +2,7 @@
 """Fail the build when money arithmetic escapes the money kernel.
 
 SPEC.md section 5: monetary values are integer cents, all arithmetic on them
-goes through ``massingbill/services/money.py``, and there is exactly one
+goes through ``massingbill/core/money.py``, and there is exactly one
 rounding site per computation. That discipline is only real if something checks
 it, because the violation that costs you a rejected pay app is a single stray
 ``line_total * rate`` in a template helper written at 5pm.
@@ -12,7 +12,7 @@ Two things are checked:
 1. **No float money.** ``Float``/``float`` on anything named like money, and any
    monetary column not declared through ``money_column``.
 2. **No arithmetic on money outside the kernel.** ``*``, ``/``, ``//`` and ``%``
-   applied to a money-named operand anywhere but ``services/money.py``.
+   applied to a money-named operand anywhere but the money kernel.
 
 Addition and subtraction of cents are exact and are allowed; multiplication and
 division are where rounding enters, so those are what is policed.
@@ -31,7 +31,13 @@ from pathlib import Path
 PACKAGE = Path(__file__).resolve().parent.parent / "massingbill"
 
 #: Modules allowed to perform money arithmetic.
-KERNEL = {"massingbill/services/money.py"}
+#: The one file allowed to scale money. Both paths, because the kernel now
+#: lives in the dependency-free core and ``services/money.py`` is the re-export
+#: sixty-odd callers still import from. The gate follows the implementation.
+KERNEL = {
+    "massingbill/core/money.py",
+    "massingbill/services/money.py",
+}
 
 #: Modules allowed to declare monetary columns directly.
 COLUMN_DECLARERS = {"massingbill/models/base.py"}
@@ -77,7 +83,7 @@ class MoneyVisitor(ast.NodeVisitor):
                     self.problems.append(
                         (
                             node.lineno,
-                            f"money arithmetic on {name!r} outside services/money.py -- "
+                            f"money arithmetic on {name!r} outside the money kernel -- "
                             f"use apply_bp() or allocate()",
                         )
                     )
@@ -153,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {finding}", file=sys.stderr)
         print(
             "\nMonetary values are integer cents. Multiplication and division "
-            "belong in services/money.py, where rounding happens once and is "
+            "belong in massingbill/core/money.py, where rounding happens once and is "
             "followed by penny reconciliation.",
             file=sys.stderr,
         )

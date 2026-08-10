@@ -230,6 +230,31 @@ jobs:
         # turn this job into a green no-op.
         run: pytest -q -m adapter | tee /dev/stderr | grep -qv "no tests ran"
 
+  core:
+    name: Core (zero dependencies)
+    runs-on: ubuntu-latest
+    # No `pip install` at all -- not even the package. If the core needs
+    # anything to run, this job says so, which is the only way that claim stays
+    # true. The suite here is the copy that ships with the vendored core, run
+    # the way a consumer runs it: `python test_x.py`, no pytest.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The core imports with nothing installed
+        run: python -c "import massingbill.core; print(massingbill.core.__doc__.splitlines()[0])"
+      - name: The vendored suite runs on the standard library alone
+        run: |
+          shopt -s nullglob
+          found=0
+          for suite in massingbill/core/tests/test_mb_*.py; do
+            echo "--- $suite"
+            python "$suite"
+            found=$((found + 1))
+          done
+          test "$found" -gt 0 || { echo "no core suites found"; exit 1; }
+
   imports:
     name: Import contracts
     runs-on: ubuntu-latest

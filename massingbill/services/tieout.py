@@ -914,7 +914,7 @@ def _informational(app: Application) -> list[Finding]:
         rule = contract.retainage_rule
         if rule is not None and rule.mode == RetainageMode.STEPPED:
             work_rate, _ = retainage_service.effective_rates(
-                rule,
+                retainage_service.spec_for(rule),
                 completed_stored=cents(app.line4_completed_stored),
                 contract_sum=cents(app.line3_contract_sum_to_date),
             )

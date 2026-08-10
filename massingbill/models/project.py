@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from massingbill.core.enums import RetainageMode
 from massingbill.models.base import (
     Base,
     TimestampMixin,
@@ -37,18 +38,11 @@ class ProjectStatus(StrEnum):
     ARCHIVED = "archived"
 
 
-class RetainageMode(StrEnum):
-    """How retainage is withheld.
-
-    ``SPLIT`` is the G702 default: separate rates for completed work (line 5a)
-    and stored material (line 5b). ``VARIABLE_LINE`` drives G703 column I.
-    ``STEPPED`` reduces the rate once the project passes a completion threshold.
-    """
-
-    FLAT = "flat"
-    SPLIT = "split"
-    VARIABLE_LINE = "variable_line"
-    STEPPED = "stepped"
+#: Defined in the core, because the retainage arithmetic branches on it and the
+#: core may not import the ORM. Re-exported here so ``from massingbill.models
+#: import RetainageMode`` keeps working and there is exactly one definition -- a
+#: second copy would let a persisted value drift from the value the engine tests.
+RetainageMode = RetainageMode
 
 
 class PartyRole(StrEnum):

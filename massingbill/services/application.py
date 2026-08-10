@@ -27,6 +27,7 @@ from datetime import date
 
 from sqlalchemy import func, select
 
+from massingbill.core import requisition
 from massingbill.errors import ConflictError, NotFoundError, ValidationError
 from massingbill.extensions import db
 from massingbill.models import (
@@ -46,7 +47,7 @@ from massingbill.models import (
 from massingbill.models.base import utcnow
 from massingbill.services import audit, events, retainage
 from massingbill.services import sov as sov_service
-from massingbill.services.money import Cents, cents, percent_of
+from massingbill.services.money import Cents, cents
 
 
 @dataclass(frozen=True)
@@ -281,63 +282,52 @@ def enter(
 def recompute(application: Application) -> Application:
     """Derive every G703 column and every G702 line from the entered values.
 
-    Pure with respect to the database: it reads the lines and the rule, and
-    writes the derived fields. Nothing here rounds twice.
+    The arithmetic itself lives in :mod:`massingbill.core.requisition`, which
+    has no database in scope. This reads the rows, hands the core plain values,
+    and writes the answer back -- so persistence and calculation can each be
+    wrong in only one place, and the calculation can be tested and vendored
+    without an ORM attached.
     """
     contract = application.prime_contract
     rule = contract.retainage_rule or _default_rule(contract)
-
-    # ── G703 columns ────────────────────────────────────────────────────────
-    for line in application.lines:
-        line.col_g_completed_stored = (
-            line.col_d_previous + line.col_e_this_period + line.col_f_stored
-        )
-        line.col_h_balance = line.col_c_scheduled_value - line.col_g_completed_stored
-        line.percent_complete_bp = percent_of(
-            cents(line.col_g_completed_stored), cents(line.col_c_scheduled_value)
-        )
-
-    # ── Retainage, per line then summed ─────────────────────────────────────
-    bases = [
-        retainage.LineBasis(
-            scheduled_value=cents(line.col_c_scheduled_value),
-            work_to_date=cents(line.col_d_previous + line.col_e_this_period),
-            stored=cents(line.col_f_stored),
-            line_rate_bp=_line_rate(line),
-        )
-        for line in application.lines
-    ]
-
-    contract_sum = cents(sum(line.col_c_scheduled_value for line in application.lines))
-    result = retainage.compute(rule, bases, contract_sum)
-
-    for line, withheld in zip(application.lines, result.lines, strict=True):
-        line.col_i_retainage = int(withheld.total)
-
-    # ── The G702 header ─────────────────────────────────────────────────────
     approved = _approved_change_orders(contract)
 
-    application.line1_original_sum = contract.original_contract_sum_cents
-    application.line2_net_co = sum(co.amount_cents for co in approved)
-    application.line3_contract_sum_to_date = (
-        application.line1_original_sum + application.line2_net_co
+    computed = requisition.compute(
+        [
+            requisition.LineEntry(
+                item_no=line.item_no,
+                description=line.description,
+                scheduled_value=cents(line.col_c_scheduled_value),
+                previous=cents(line.col_d_previous),
+                this_period=cents(line.col_e_this_period),
+                stored=cents(line.col_f_stored),
+                line_rate_bp=_line_rate(line),
+            )
+            for line in application.lines
+        ],
+        original_contract_sum=cents(contract.original_contract_sum_cents),
+        retainage=retainage.spec_for(rule),
+        net_change_orders=cents(sum(co.amount_cents for co in approved)),
+        previous_certificates=cents(_previous_certificates(application)),
     )
-    application.line4_completed_stored = sum(
-        line.col_g_completed_stored for line in application.lines
-    )
-    application.line5a_retainage_work = int(result.line5a_work)
-    application.line5b_retainage_stored = int(result.line5b_stored)
-    application.line5_total_retainage = int(result.total)
-    application.line6_earned_less_retainage = (
-        application.line4_completed_stored - application.line5_total_retainage
-    )
-    application.line7_previous_certificates = _previous_certificates(application)
-    application.line8_current_payment_due = (
-        application.line6_earned_less_retainage - application.line7_previous_certificates
-    )
-    application.line9_balance_to_finish = (
-        application.line3_contract_sum_to_date - application.line6_earned_less_retainage
-    )
+
+    for line, result in zip(application.lines, computed.lines, strict=True):
+        line.col_g_completed_stored = int(result.col_g_completed_stored)
+        line.col_h_balance = int(result.col_h_balance)
+        line.col_i_retainage = int(result.col_i_retainage)
+        line.percent_complete_bp = int(result.percent_complete_bp)
+
+    application.line1_original_sum = int(computed.line1_original_sum)
+    application.line2_net_co = int(computed.line2_net_co)
+    application.line3_contract_sum_to_date = int(computed.line3_contract_sum_to_date)
+    application.line4_completed_stored = int(computed.line4_completed_stored)
+    application.line5a_retainage_work = int(computed.line5a_retainage_work)
+    application.line5b_retainage_stored = int(computed.line5b_retainage_stored)
+    application.line5_total_retainage = int(computed.line5_total_retainage)
+    application.line6_earned_less_retainage = int(computed.line6_earned_less_retainage)
+    application.line7_previous_certificates = int(computed.line7_previous_certificates)
+    application.line8_current_payment_due = int(computed.line8_current_payment_due)
+    application.line9_balance_to_finish = int(computed.line9_balance_to_finish)
 
     _fill_change_order_summary(application, approved)
 
