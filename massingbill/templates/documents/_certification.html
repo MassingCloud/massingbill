@@ -1,0 +1,147 @@
+{#
+  Certification and header blocks.
+
+  EVERY WORD HERE IS ORIGINAL. This is the part of a pay application that the
+  blank-forms doctrine plainly does not reach: a ruled grid follows from the
+  arithmetic, but a paragraph of certification prose is expressive writing and
+  belongs to whoever wrote it.
+
+  So these paragraphs were written for this product. They say what a
+  certification has to say -- that the work is done, that payment is due, that
+  the sums are true -- in our own words. See docs/legal-forms-policy.md 2.
+
+  The practical test for anyone editing this file: would this sentence exist if
+  the AIA had never published anything? If you cannot say yes, write your own.
+#}
+
+{% macro parties(view) %}
+<table class="parties">
+  <tr>
+    <td>
+      <div class="party-label">Owner</div>
+      <div class="party-value">{{ view.owner_name or "—" }}</div>
+      {% if view.owner_address %}<div class="party-address">{{ view.owner_address }}</div>{% endif %}
+    </td>
+    <td>
+      <div class="party-label">Contractor</div>
+      <div class="party-value">{{ view.contractor_name or "—" }}</div>
+      {% if view.contractor_address %}<div class="party-address">{{ view.contractor_address }}</div>{% endif %}
+    </td>
+    <td>
+      <div class="party-label">Architect</div>
+      <div class="party-value">{{ view.architect_name or "—" }}</div>
+      {% if view.architect_address %}<div class="party-address">{{ view.architect_address }}</div>{% endif %}
+    </td>
+  </tr>
+</table>
+{% endmacro %}
+
+
+{% macro contractor_certification(view) %}
+<div class="cert">
+  <h2>Contractor's statement</h2>
+  <p>
+    The undersigned contractor states that the work covered by this application
+    has been completed in accordance with the contract documents; that the
+    amounts shown have been paid by the contractor for work for which previous
+    certificates were issued and payments received; and that the payment shown
+    as currently due is now properly owing.
+  </p>
+
+  <table class="signature-block">
+    <tr>
+      <td>
+        <div class="sig-line">&nbsp;</div>
+        <div class="sig-caption">Contractor &mdash; authorised signature</div>
+      </td>
+      <td>
+        <div class="sig-line">&nbsp;</div>
+        <div class="sig-caption">Printed name and title</div>
+      </td>
+      <td>
+        <div class="sig-line">&nbsp;</div>
+        <div class="sig-caption">Date</div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="notary">
+    <p class="notary-caption">
+      State of ______________________ &nbsp;&nbsp; County of ______________________
+    </p>
+    <p class="notary-caption">
+      Subscribed and sworn to before me this ______ day of ______________, 20____.
+    </p>
+    <table class="signature-block">
+      <tr>
+        <td><div class="sig-line">&nbsp;</div><div class="sig-caption">Notary public</div></td>
+        <td><div class="sig-line">&nbsp;</div><div class="sig-caption">My commission expires</div></td>
+      </tr>
+    </table>
+  </div>
+</div>
+{% endmacro %}
+
+
+{% macro architect_certificate(view) %}
+<div class="cert cert-architect">
+  <h2>Architect's certificate</h2>
+  <p>
+    Based on observations at the site and on the data in this application, the
+    architect certifies to the owner that to the best of the architect's
+    knowledge the work has progressed as stated, that its quality is in
+    accordance with the contract documents, and that the contractor is entitled
+    to payment of the amount certified below.
+  </p>
+
+  <table class="certified-amount">
+    <tr>
+      <td class="certified-label">Amount certified</td>
+      <td class="certified-value num">
+        {% if view.amount_certified is not none %}
+          {{ view.amount_certified | money }}
+        {% else %}
+          <span class="blank-rule">&nbsp;</span>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+
+  {% if view.amount_certified is not none and view.certified_variance %}
+    <p class="variance">
+      This differs from the amount applied for by
+      {{ view.certified_variance | money_paren }}.
+      {% if view.certification_reason %}Reason: {{ view.certification_reason }}{% endif %}
+    </p>
+  {% else %}
+    <p class="hint-note">
+      Where the amount certified differs from the amount applied for, initial the
+      figures on this application and on the continuation sheet that have been
+      changed to match, and attach an explanation.
+    </p>
+  {% endif %}
+
+  <table class="signature-block">
+    <tr>
+      <td>
+        <div class="sig-line">
+          {%- if view.certified_by %}{{ view.certified_by }}{% endif -%}
+        </div>
+        <div class="sig-caption">Architect &mdash; authorised signature</div>
+      </td>
+      <td>
+        <div class="sig-line">
+          {%- if view.certified_on %}{{ view.certified_on.isoformat() }}{% endif -%}
+        </div>
+        <div class="sig-caption">Date</div>
+      </td>
+    </tr>
+  </table>
+
+  <p class="cert-note">
+    This certificate is not negotiable. It is payable only to the contractor
+    named above. Issuing, receiving or accepting payment does not prejudice any
+    rights of the owner or the contractor under the contract.
+  </p>
+</div>
+{% endmacro %}

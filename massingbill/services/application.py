@@ -44,7 +44,7 @@ from massingbill.models import (
     User,
 )
 from massingbill.models.base import utcnow
-from massingbill.services import audit, retainage
+from massingbill.services import audit, events, retainage
 from massingbill.services import sov as sov_service
 from massingbill.services.money import Cents, cents, percent_of
 
@@ -467,18 +467,32 @@ def install_material(material: StoredMaterial, application: Application) -> None
 # ── Submitting and certifying ───────────────────────────────────────────────
 
 
-def submit(application: Application, *, actor: User) -> Application:
+def submit(
+    application: Application, *, actor: User | None = None, actor_label: str = ""
+) -> Application:
     """Freeze the period.
 
     Runs the tie-out engine first: an application that does not balance must
     not become a financial record.
+
+    ``actor`` is optional because an API key is not a user and never will be --
+    it outlives the person who minted it. When there is no user, ``actor_label``
+    must name what acted instead, so the audit chain never records an anonymous
+    submission.
     """
+    if actor is None and not actor_label:
+        raise ValidationError("A submission must record who made it.")
     _require_editable(application)
 
     from massingbill.services import tieout
 
     report = tieout.run(application)
     if report.blocking:
+        # No webhook here on purpose. This path raises, the caller rolls back,
+        # and an event queued inside that transaction would roll back with it --
+        # the same reason the audit chain flushes rather than commits. The
+        # ``tieout.failed`` event is emitted by the explicit check instead
+        # (``services/events.py``), where the transaction survives.
         raise ValidationError(
             "This application does not tie out and cannot be submitted. "
             f"{len(report.blocking)} blocking issue(s): "
@@ -488,7 +502,7 @@ def submit(application: Application, *, actor: User) -> Application:
 
     application.status = ApplicationStatus.SUBMITTED
     application.submitted_at = utcnow()
-    application.submitted_by_id = actor.id
+    application.submitted_by_id = actor.id if actor else None
 
     _take_snapshot(application)
     db.session.flush()
@@ -502,9 +516,10 @@ def submit(application: Application, *, actor: User) -> Application:
             "number": application.number,
             "line8_cents": application.line8_current_payment_due,
         },
-        actor_id=actor.id,
-        actor_label=actor.email,
+        actor_id=actor.id if actor else None,
+        actor_label=actor.email if actor else actor_label,
     )
+    events.application_submitted(application)
     return application
 
 
@@ -546,6 +561,7 @@ def certify(
         actor_id=actor.id if actor else None,
         actor_label=actor.email if actor else "",
     )
+    events.application_certified(application, certification)
     return certification
 
 

@@ -6,6 +6,14 @@ sees the full metadata and SQLAlchemy can resolve every string annotation.
 
 from __future__ import annotations
 
+from .apikey import (
+    ALL_WEBHOOK_EVENTS,
+    ApiKey,
+    DeliveryStatus,
+    WebhookDelivery,
+    WebhookEvent,
+    WebhookSubscription,
+)
 from .application import (
     EDITABLE_STATUSES,
     ISSUED_STATUSES,
@@ -34,6 +42,12 @@ from .change import (
     PcoStatus,
     PotentialChangeOrder,
 )
+from .compliance import (
+    COMPLIANCE_LABELS,
+    ComplianceDoc,
+    ComplianceKind,
+    ComplianceRequirement,
+)
 from .organization import (
     INTERNAL_ROLES,
     ROLE_LABELS,
@@ -42,6 +56,7 @@ from .organization import (
     Organization,
     Role,
 )
+from .payment import Payment, PaymentMethod
 from .project import (
     ContractParty,
     FormStyle,
@@ -55,14 +70,33 @@ from .project import (
 )
 from .sov import CostCode, ScheduleOfValues, SovLine, SovStatus
 from .stored import StorageLocation, StoredMaterial
+from .subcontract import (
+    SubApplication,
+    SubApplicationStatus,
+    Subcontract,
+    SubcontractLine,
+    SubcontractStatus,
+)
 from .user import User
+from .waiver import (
+    WAIVER_TYPE_LABELS,
+    Signature,
+    WaiverInstance,
+    WaiverStatus,
+    WaiverTemplate,
+    WaiverType,
+)
 
 __all__ = [
+    "ALL_WEBHOOK_EVENTS",
+    "COMPLIANCE_LABELS",
     "EDITABLE_STATUSES",
     "GENESIS_HASH",
     "INTERNAL_ROLES",
     "ISSUED_STATUSES",
     "ROLE_LABELS",
+    "WAIVER_TYPE_LABELS",
+    "ApiKey",
     "Application",
     "ApplicationLine",
     "ApplicationSnapshot",
@@ -74,13 +108,19 @@ __all__ = [
     "ChangeOrderLine",
     "ChangeOrderStatus",
     "ChangeOrderType",
+    "ComplianceDoc",
+    "ComplianceKind",
+    "ComplianceRequirement",
     "ContractParty",
     "CostCode",
+    "DeliveryStatus",
     "FormStyle",
     "Invitation",
     "Membership",
     "Organization",
     "PartyRole",
+    "Payment",
+    "PaymentMethod",
     "PcoStatus",
     "PeriodConvention",
     "PotentialChangeOrder",
@@ -91,14 +131,27 @@ __all__ = [
     "RetainageRule",
     "Role",
     "ScheduleOfValues",
+    "Signature",
     "SoftDeleteMixin",
     "SovLine",
     "SovStatus",
     "StorageLocation",
     "StoredMaterial",
+    "SubApplication",
+    "SubApplicationStatus",
+    "Subcontract",
+    "SubcontractLine",
+    "SubcontractStatus",
     "TimestampMixin",
     "User",
     "UuidPrimaryKeyMixin",
+    "WaiverInstance",
+    "WaiverStatus",
+    "WaiverTemplate",
+    "WaiverType",
+    "WebhookDelivery",
+    "WebhookEvent",
+    "WebhookSubscription",
     "bp_column",
     "money_column",
     "new_uuid",

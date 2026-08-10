@@ -43,11 +43,33 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install the WeasyPrint native stack
+        # This is what makes PDF export work. Installing it here means the
+        # tests marked `pdf` run for real rather than skipping, so a regression
+        # in the PDF pipeline fails the build instead of quietly disappearing.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b             libcairo2 libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info             fonts-dejavu-core
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install ".[dev]"
+      - run: pip install ".[dev,render]"
+
+      - name: Confirm the PDF renderer is usable
+        # Fail here rather than silently skipping the PDF tests below.
+        run: |
+          python - <<'PY'
+          import sys
+          from massingbill.services.renderers import PDF_AVAILABLE, pdf_unavailable_reason
+          if not PDF_AVAILABLE:
+              print(pdf_unavailable_reason())
+              sys.exit(1)
+          print("WeasyPrint loaded; PDF tests will run.")
+          PY
+
       - name: Run tests
         # The floor rises with each phase; the money engine, retainage, the
         # period engine and the tie-out rules carry a 100% requirement of their
@@ -55,6 +77,10 @@ jobs:
         env:
           HYPOTHESIS_PROFILE: ci
         run: pytest -q --cov=massingbill --cov-report=xml --cov-report=term-missing --cov-fail-under=90
+
+      - name: Assert the PDF tests actually ran
+        run: pytest -q -m pdf --no-header | tee /dev/stderr | grep -qv "no tests ran"
+
       - uses: actions/upload-artifact@v4
         if: matrix.python-version == '3.12'
         with:
@@ -116,21 +142,50 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install ".[dev]"
-      - name: Import the whole package with outbound traffic dropped
+      - name: Import the whole package with every socket refused
+        # Enforced in-process rather than with iptables.
+        #
+        # The iptables version matched the runner agent's own uid, so when an
+        # import hung the REJECT rule was still in place and the runner lost
+        # communication with GitHub -- a 45-minute job and an infrastructure
+        # error instead of a test result. Patching socket.socket.connect proves
+        # exactly the same property (nothing here needs the network) without
+        # being able to take the machine down with it.
+        timeout-minutes: 5
         run: |
-          sudo iptables -I OUTPUT -m owner --uid-owner "$(id -u)" -d 0.0.0.0/0 -j REJECT
-          sudo iptables -I OUTPUT -m owner --uid-owner "$(id -u)" -d 127.0.0.0/8 -j ACCEPT
-          python -c "
-          import importlib, pkgutil, massingbill
-          for m in pkgutil.walk_packages(massingbill.__path__, 'massingbill.'):
-              if 'integrations' in m.name: continue
-              importlib.import_module(m.name)
+          python - <<'PY'
+          import importlib
+          import pkgutil
+          import socket
+
+          class NetworkUsed(RuntimeError):
+              pass
+
+          def refuse(self, address, *args, **kwargs):
+              raise NetworkUsed(f"outbound connection attempted to {address!r}")
+
+          socket.socket.connect = refuse
+          socket.create_connection = refuse
+
+          import massingbill
+          # Single-sourced with the standalone-integrity test, so this job and
+          # that test cannot disagree about what a minimal install may lack.
+          from massingbill.optional import is_optional
+
+          imported = 0
+          for module in pkgutil.walk_packages(massingbill.__path__, "massingbill."):
+              if is_optional(module.name):
+                  continue
+              importlib.import_module(module.name)
+              imported += 1
+
           from massingbill import create_app
+
           app = create_app()
-          assert app.test_client().get('/healthz').status_code == 200
-          print('booted and served /healthz with no network')
-          "
-          sudo iptables -D OUTPUT -m owner --uid-owner "$(id -u)" -d 0.0.0.0/0 -j REJECT
+          assert app.test_client().get("/healthz").status_code == 200
+          assert app.config["MASSINGBILL_ENTITLEMENT_PROVIDER"] == "standalone"
+          print(f"imported {imported} modules, booted, and served /healthz with no network")
+          PY
 
   no-adapters:
     name: No adapters (delete and re-run)
@@ -205,9 +260,16 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install ".[dev]" pip-audit cyclonedx-bom
+      # Installed editable so `--skip-editable` below can exclude it. The point
+      # of this job is the dependency tree; massingbill itself is not on PyPI,
+      # so pip-audit cannot look it up and fails the whole run trying.
+      - run: pip install -e ".[dev]" pip-audit cyclonedx-bom
       - name: Audit dependencies
-        run: pip-audit --strict --progress-spinner off
+        # No `--strict`: that flag also fails the run when any dependency is
+        # *skipped*, which is precisely what `--skip-editable` does to our own
+        # package. Without it pip-audit still exits non-zero on a real
+        # vulnerability, which is the thing this job is for.
+        run: pip-audit --skip-editable --progress-spinner off
       - name: Generate SBOM
         run: cyclonedx-py environment -o sbom.json
       - uses: actions/upload-artifact@v4
@@ -233,6 +295,7 @@ jobs:
         run: |
           docker run -d --name massingbill-ci -p 8000:8000 \
             -e MASSINGBILL_SECRET_KEY=ci-only-secret-key-value \
+            -e MASSINGBILL_ENCRYPTION_KEY=ci-only-encryption-key-value \
             -e MASSINGBILL_SESSION_COOKIE_SECURE=false \
             massingbill:ci
           for i in $(seq 1 30); do
