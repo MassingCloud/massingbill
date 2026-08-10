@@ -72,15 +72,16 @@ tie-out rule set; the G702/G703 layout is one of several renderers over it.
 
 ## Status
 
-**The engine, the documents, the workflow services and the API are done.** A
-ten-period golden project with hand-computed G702 headers reproduces every
-figure exactly, every period passes tie-out, and the
-[published demo](https://massingcloud.github.io/massingbill/) is that same
-engine's real output.
+**v1.0.0 — every phase is built and tested.** A ten-period golden project with
+hand-computed G702 headers reproduces every figure exactly, every period passes
+tie-out, and the [published demo](https://massingcloud.github.io/massingbill/)
+is that same engine's real output.
 
-What remains is the web UI over the P6 workflow services — waivers, compliance,
-subcontracts and payments are built and tested, but reachable today through the
-REST API and the CLI rather than through a screen.
+[`CHANGELOG.md`](CHANGELOG.md) records what 1.0 is *and what it is not* — the
+known limits are listed there rather than left to be discovered. The short
+version: statutory waiver text and deadline day counts ship empty and refuse
+until you enter them, ERP integration is file-based rather than API, and no
+external penetration test has been run.
 
 See [`SPEC.md`](SPEC.md) for the full plan and the phase-by-phase acceptance
 criteria, [`docs/competitive-upgrades.md`](docs/competitive-upgrades.md) for the
@@ -96,13 +97,12 @@ this back into massing.cloud actually requires.
 | P3 | The requisition engine (G702/G703, retainage, change orders, stored materials) | **done** |
 | P4 | Tie-out rule engine — 35 rules | **done** |
 | P5 | PDF / XLSX / CSV / JSON documents | **done** |
-| P6 | Lien waivers, e-signature, compliance, subcontracts, payments | **services done** |
+| P6 | Requisition UI, lien waivers, e-signature, compliance, subcontracts, payments | **done** |
+| P6.5 | Statutory deadline engine | **done** |
 | P7a | REST API, API keys, webhooks, OpenAPI 3.1, Python SDK | **done** |
-| P6 | The web UI over those services | next |
-| P6.5 | Statutory deadline engine | |
-| P7b | OIDC, S3, Procore / QuickBooks / Sage adapters | |
-| P8 | Hardening, ops runbook, **v1.0.0** | |
-| P9–P10 | *Optional:* massing.cloud adapter, WordPress bridge | |
+| P7b | OIDC, S3, and file-based ERP / portal exports | **done** |
+| P8 | Ops runbook, security posture, **v1.0.0** | **done** |
+| P9–P10 | *Optional, post-1.0:* massing.cloud adapter, WordPress bridge | |
 
 ## Development
 
@@ -132,6 +132,13 @@ lint-imports
 PDF rendering needs the WeasyPrint native stack (pango, cairo). Install
 `.[render]` and the system libraries, or just use the container — the image
 carries them.
+
+## Running it
+
+[`docs/runbook.md`](docs/runbook.md) covers install, backups (and how to prove a
+backup actually restores), upgrades, the cron jobs, what to do when something is
+wrong, and key rotation. Written to be followed by someone who did not build
+this.
 
 ## The API
 

@@ -98,14 +98,22 @@ def test_utcnow_is_timezone_aware() -> None:
 # ── Adapter absence ─────────────────────────────────────────────────────────
 
 
-def test_requesting_oidc_before_p7_explains_itself() -> None:
-    with pytest.raises(AdapterUnavailableError, match="pip install"):
+def test_an_oidc_provider_must_be_configured_not_merely_named() -> None:
+    """These two used to assert "OIDC is not built yet". It is built now, so
+    they assert the thing that is still true and still worth pinning: naming a
+    provider is not the same as configuring one, and a half-configured issuer
+    must fail loudly at startup rather than at somebody's first sign-in.
+
+    The genuinely-not-installed path is covered in ``test_adapters.py``, which
+    forces the ImportError rather than relying on the file being absent.
+    """
+    with pytest.raises((ValueError, TypeError)):
         get_identity_provider("google")
 
 
-def test_requesting_s3_before_p7_explains_itself() -> None:
-    with pytest.raises(AdapterUnavailableError, match="pip install"):
-        get_backend("s3", bucket="x")
+def test_s3_storage_needs_a_bucket() -> None:
+    with pytest.raises(ValueError, match="bucket"):
+        get_backend("s3", bucket="")
 
 
 def test_requesting_the_vault_before_p9_explains_itself() -> None:

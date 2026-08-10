@@ -9,6 +9,7 @@ modules and re-runs this suite.
 from __future__ import annotations
 
 import importlib
+import pathlib
 import pkgutil
 import socket
 
@@ -47,15 +48,42 @@ def test_every_core_module_imports_without_optional_dependencies() -> None:
 def test_no_core_module_imports_an_adapter() -> None:
     """The import-linter contract, asserted at runtime too.
 
-    Importing the whole core must not drag an adapter module into sys.modules.
+    Run in a **subprocess**. In-process, this measured whatever the test session
+    happened to have imported already -- so it passed for as long as no other
+    test touched an adapter, and started failing the moment one did, reporting a
+    leak that was not there. A test that depends on the order of the suite is
+    not testing the property it names.
     """
+    import subprocess
     import sys
 
-    for name in _iter_core_modules():
-        importlib.import_module(name)
+    program = (
+        "import importlib, sys;"
+        "import massingbill.optional as o;"
+        "mods = __import__('tests.test_standalone_integrity', fromlist=['x'])"
+        ".core_module_names();"
+        "[importlib.import_module(m) for m in mods];"
+        "leaked = o.ADAPTER_MODULES & set(sys.modules);"
+        # Marked, because importing the package prints a WeasyPrint banner to
+        # stdout when the native stack is absent. Reading the whole stream
+        # reported that banner as a leaked module name.
+        "print('LEAKED:' + ','.join(sorted(leaked)))"
+    )
+    result = subprocess.run(  # noqa: S603 - our own interpreter, our own literal
+        [sys.executable, "-c", program],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=str(pathlib.Path(__file__).resolve().parents[1]),
+    )
+    marker = next(line for line in result.stdout.splitlines() if line.startswith("LEAKED:"))
+    leaked = [name for name in marker.removeprefix("LEAKED:").split(",") if name]
+    assert not leaked, f"core import pulled in optional adapters: {leaked}"
 
-    leaked = ADAPTER_MODULES & set(sys.modules)
-    assert not leaked, f"core import pulled in optional adapters: {sorted(leaked)}"
+
+def core_module_names() -> list[str]:
+    """Public alias, so the subprocess above can reach the same list."""
+    return _iter_core_modules()
 
 
 def test_the_renderers_package_imports_without_its_extras(app: Flask) -> None:
