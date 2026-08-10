@@ -68,7 +68,8 @@ def _create_admin(args: argparse.Namespace) -> int:
 
     from massingbill import create_app
     from massingbill.extensions import db
-    from massingbill.services import accounts, seeding
+    from massingbill.services import accounts, deadlines, seeding
+    from massingbill.services import waivers as waiver_service
 
     password = args.password or getpass.getpass("Password: ")
 
@@ -78,6 +79,11 @@ def _create_admin(args: argparse.Namespace) -> int:
             user = accounts.create_user(args.email, password, name=args.name or "")
             organization = accounts.create_organization(args.organization, user)
             seeded = seeding.seed_cost_codes(organization)
+            # Both ship deliberately empty and refuse until verified, so
+            # seeding them is how a contractor finds out the obligations
+            # exist at all rather than discovering the gap later.
+            templates = waiver_service.seed_templates(organization)
+            rules = deadlines.seed_rules(organization)
             db.session.commit()
 
             # Read the attributes before the context closes: after commit the
@@ -85,7 +91,12 @@ def _create_admin(args: argparse.Namespace) -> int:
             # raises DetachedInstanceError.
             summary = (
                 f"Created {user.email} as owner of {organization.name} "
-                f"({organization.slug}).\nSeeded {seeded} CSI MasterFormat division(s)."
+                f"({organization.slug}).\n"
+                f"Seeded {seeded} CSI MasterFormat division(s), {templates} lien-waiver "
+                f"template(s) and {rules} statutory deadline rule(s).\n"
+                "The statutory waiver forms and every deadline rule ship EMPTY and "
+                "refuse to render or compute until someone reads the statute and "
+                "verifies them. That is deliberate; see docs/legal-forms-policy.md."
             )
         except Exception as exc:  # noqa: BLE001 - report cleanly, do not traceback
             db.session.rollback()

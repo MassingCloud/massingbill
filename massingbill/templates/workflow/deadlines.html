@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Deadlines — {{ project.number }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  Deadlines
+</nav>
+
+<h1>Statutory deadlines</h1>
+<p class="lede">
+  {{ project.jurisdiction_state or "No jurisdiction set" }} &middot;
+  computed from the dates recorded on this project.
+</p>
+
+<p class="note">
+  <strong>Massing Bill computes and warns. It does not file, serve or record
+  anything.</strong> Filing is a regulated service business with per-state
+  requirements; a law firm or a filing service does that part.
+</p>
+
+{% if not project.jurisdiction_state %}
+<p class="empty">
+  Set the project's jurisdiction before deadlines can be computed &mdash; every
+  rule here is per-state.
+</p>
+{% endif %}
+
+<section class="panel">
+  <h2>Dates this project counts from</h2>
+  <dl class="facts">
+    <dt>First furnishing</dt>
+    <dd>{{ project.first_furnishing_date or "not recorded" }}</dd>
+    <dt>Last furnishing</dt>
+    <dd>{{ project.last_furnishing_date or "not recorded" }}</dd>
+    <dt>Substantial completion</dt>
+    <dd>
+      {% if project.prime_contract and project.prime_contract.substantial_completion_date %}
+        {{ project.prime_contract.substantial_completion_date }}
+      {% else %}not recorded{% endif %}
+    </dd>
+    <dt>Notice of completion</dt>
+    <dd>{{ project.notice_of_completion_date or "not recorded" }}</dd>
+  </dl>
+  <p class="note">
+    A deadline whose anchor has not been recorded is listed as uncomputable
+    rather than omitted &mdash; an obligation missing from a list reads as
+    &ldquo;you have none&rdquo;.
+  </p>
+</section>
+
+{% if obligations %}
+<table class="grid">
+  <thead>
+    <tr><th>Obligation</th><th>Counts from</th><th>Due</th><th>Remaining</th><th>Citation</th></tr>
+  </thead>
+  <tbody>
+    {% for o in obligations %}
+    <tr>
+      <td>{{ o.rule.kind_label }}</td>
+      <td>{{ o.rule.anchor | replace("_", " ") }}</td>
+      <td>
+        {% if o.due_on %}
+          {{ o.due_on }}
+        {% else %}
+          <span class="warn">not computable</span>
+        {% endif %}
+      </td>
+      <td class="num">
+        {% set left = o.days_remaining(today) %}
+        {% if left is none %}
+          &mdash;
+        {% elif left < 0 %}
+          <span class="finding-error">{{ -left }} day(s) past</span>
+        {% elif o.is_urgent(today) %}
+          <span class="finding-warning">{{ left }} day(s)</span>
+        {% else %}
+          {{ left }} day(s)
+        {% endif %}
+      </td>
+      <td>{{ o.rule.citation or "—" }}</td>
+    </tr>
+    {% if o.refusal %}
+    <tr>
+      <td colspan="5" class="note">{{ o.refusal }}</td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if unverified and can_write %}
+<section class="panel panel-bad">
+  <h2>{{ unverified|length }} rule(s) awaiting verification</h2>
+  <p>
+    These ship empty on purpose. A mechanics lien filed one day late is gone
+    &mdash; there is no appeal and no cure &mdash; so a day count nobody read
+    out of the statute is worse than no day count at all, because somebody would
+    rely on it.
+  </p>
+  <ul class="states">
+    {% for rule in unverified %}
+    <li class="state state-blocking">
+      <strong>{{ rule.state }}</strong> &mdash; {{ rule.kind_label }}
+      ({{ rule.claimant_role | replace("_", " ") }})
+      {% if rule.note %}<span class="citation">{{ rule.note }}</span>{% endif %}
+      <details>
+        <summary>Enter the day count</summary>
+        <form method="post"
+              action="{{ url_for('workflow.verify_deadline', project_id=project.id, rule_id=rule.id) }}">
+          {{ form.csrf_token }}
+          <div class="row">
+            {{ m.field(form.days) }}
+            {{ m.field(form.anchor) }}
+            {{ m.field(form.day_basis) }}
+          </div>
+          {{ m.field(form.citation) }}
+          {{ form.submit(class="button") }}
+        </form>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

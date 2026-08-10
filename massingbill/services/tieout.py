@@ -478,6 +478,7 @@ def _policy(app: Application) -> list[Finding]:
     out.extend(_compliance_rules(app))
     out.extend(_payment_rules(app))
     out.extend(_party_rules(app))
+    out.extend(_deadline_rules(app))
 
     # SEQUENCE: gaps in application numbering.
     if contract is not None and _checks_live_data(app):
@@ -930,3 +931,76 @@ def _informational(app: Application) -> list[Finding]:
 
 
 __all__ = ["Finding", "Severity", "TieoutReport", "run"]
+
+
+def _deadline_rules(app: Application) -> list[Finding]:
+    """Statutory deadlines that are close, or already gone.
+
+    On the application rather than only on a project page, because the pay
+    application is the document a project accountant opens every month, and a
+    lien deadline is the one thing on this list that cannot be fixed after the
+    fact.
+
+    Unverified rules are reported too. A missing obligation reads as "you have
+    none"; one that says nobody has checked the rule reads as what it is.
+    """
+    if not _checks_live_data(app):
+        return []
+
+    from massingbill.services import deadlines as deadline_service
+
+    contract = app.prime_contract
+    project = contract.project if contract else None
+    if project is None or not project.jurisdiction_state:
+        return []
+
+    today = app.period_end
+    out: list[Finding] = []
+
+    for obligation in deadline_service.compute(project, on=today):
+        rule = obligation.rule
+
+        if obligation.refusal and not rule.is_usable:
+            out.append(
+                Finding(
+                    "DEADLINE-UNVERIFIED",
+                    Severity.WARNING,
+                    obligation.refusal,
+                    citation=rule.citation or f"{rule.state} statute",
+                )
+            )
+            continue
+
+        if not obligation.is_computable:
+            continue
+
+        remaining = obligation.days_remaining(today)
+        if remaining is None:
+            continue
+
+        if remaining < 0:
+            out.append(
+                Finding(
+                    "DEADLINE-PASSED",
+                    Severity.WARNING,
+                    (
+                        f"{rule.kind_label} in {rule.state} was due "
+                        f"{obligation.due_on} — {abs(remaining)} day(s) ago."
+                    ),
+                    citation=rule.citation,
+                )
+            )
+        elif obligation.is_urgent(today):
+            out.append(
+                Finding(
+                    "DEADLINE-NEAR",
+                    Severity.WARNING,
+                    (
+                        f"{rule.kind_label} in {rule.state} is due {obligation.due_on}, "
+                        f"in {remaining} day(s)."
+                    ),
+                    citation=rule.citation,
+                )
+            )
+
+    return out

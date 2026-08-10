@@ -271,3 +271,73 @@ def test_no_workflow_screen_leaks_across_tenants(
     response = client.get(f"/projects/{stranger.project.id}{path}")
 
     assert response.status_code == 404
+
+
+# ── Deadlines ───────────────────────────────────────────────────────────────
+
+
+def test_the_deadlines_screen_renders_and_shows_the_refusal(
+    client: FlaskClient, tenant: Tenant
+) -> None:
+    from massingbill.services import deadlines as deadline_service
+
+    tenant.project.jurisdiction_state = "CA"
+    deadline_service.seed_rules(tenant.organization)
+    db.session.commit()
+
+    sign_in(client, tenant.user(Role.PM))
+    response = client.get(f"{base(tenant)}/deadlines")
+
+    assert response.status_code == 200
+    assert b"awaiting verification" in response.data
+    assert b"does not file, serve or record" in response.data
+
+
+def test_verifying_a_deadline_rule_from_the_screen(client: FlaskClient, tenant: Tenant) -> None:
+    from massingbill.models import DeadlineRule
+    from massingbill.services import deadlines as deadline_service
+
+    tenant.project.jurisdiction_state = "CA"
+    deadline_service.seed_rules(tenant.organization)
+    db.session.commit()
+
+    rule = deadline_service.unverified_rules(tenant.organization.id, "CA")[0]
+    sign_in(client, tenant.user(Role.PM))
+
+    client.post(
+        f"{base(tenant)}/deadlines/{rule.id}/verify",
+        data={
+            "days": "90",
+            "citation": "Cal. Civ. Code § 8412",
+            "anchor": "last_furnishing",
+            "day_basis": "calendar",
+        },
+        follow_redirects=True,
+    )
+
+    db.session.expire_all()
+    verified = db.session.get(DeadlineRule, rule.id)
+    assert verified.verified
+    assert verified.days == 90
+    assert verified.is_usable
+
+
+def test_a_rule_cannot_be_verified_without_a_citation(client: FlaskClient, tenant: Tenant) -> None:
+    """A day count with no source is indistinguishable from a guess later."""
+    from massingbill.models import DeadlineRule
+    from massingbill.services import deadlines as deadline_service
+
+    tenant.project.jurisdiction_state = "CA"
+    deadline_service.seed_rules(tenant.organization)
+    db.session.commit()
+    rule = deadline_service.unverified_rules(tenant.organization.id, "CA")[0]
+
+    sign_in(client, tenant.user(Role.PM))
+    client.post(
+        f"{base(tenant)}/deadlines/{rule.id}/verify",
+        data={"days": "90", "citation": ""},
+        follow_redirects=True,
+    )
+
+    db.session.expire_all()
+    assert not db.session.get(DeadlineRule, rule.id).verified

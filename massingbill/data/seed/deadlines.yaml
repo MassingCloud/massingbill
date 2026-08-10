@@ -1,0 +1,106 @@
+# Statutory deadline rules — STRUCTURE ONLY.
+#
+# Every rule below ships with `days: null` and `verified: false`, and the engine
+# REFUSES to compute a date from an unverified rule. That is deliberate and it
+# is not laziness.
+#
+# A mechanics lien filed one day late is gone. There is no appeal, no cure, and
+# no negotiation — the right simply ceased to exist. A day count that nobody
+# read out of the statute is therefore worse than no day count at all, because a
+# contractor would rely on it, and would find out at the only moment when
+# finding out is useless.
+#
+# What IS seeded here is genuinely useful and safe to assert:
+#   - which obligations exist as categories,
+#   - what event each one counts from,
+#   - and a place to record the citation the number came from.
+#
+# What is NOT seeded is every number, and every citation that would imply one.
+# Fill those in from the statute, per state, and mark the rule verified. See
+# docs/legal-forms-policy.md for the same doctrine applied to waiver wording.
+#
+# Deadlines vary not only by state but by claimant role, by public vs private
+# work, by residential vs commercial, and by whether a preliminary notice was
+# served. This model captures state, role and effective date. Anything finer is
+# recorded in the rule's note, and is the verifier's responsibility to check.
+
+defaults:
+  effective_from: "2000-01-01"
+  claimant_roles: [general_contractor, subcontractor, supplier]
+  obligations:
+    - kind: preliminary_notice
+      anchor: first_furnishing
+      day_basis: calendar
+    - kind: notice_of_intent
+      anchor: last_furnishing
+      day_basis: calendar
+    - kind: mechanics_lien
+      anchor: last_furnishing
+      day_basis: calendar
+    - kind: suit_to_foreclose
+      anchor: last_furnishing
+      day_basis: calendar
+
+# All fifty states plus DC. The list is complete so that a contractor in any
+# jurisdiction sees their obligations named and unverified, rather than seeing
+# nothing and concluding they have none.
+states:
+  - { state: AL }
+  - { state: AK }
+  - { state: AZ }
+  - { state: AR }
+  - state: CA
+    note: >-
+      Several California deadlines run from recordation of a notice of
+      completion or cessation when one is recorded, and from completion when one
+      is not. Verify which anchor applies before relying on a computed date.
+  - { state: CO }
+  - { state: CT }
+  - { state: DE }
+  - { state: DC }
+  - { state: FL }
+  - { state: GA }
+  - { state: HI }
+  - { state: ID }
+  - { state: IL }
+  - { state: IN }
+  - { state: IA }
+  - { state: KS }
+  - { state: KY }
+  - { state: LA }
+  - { state: ME }
+  - { state: MD }
+  - { state: MA }
+  - { state: MI }
+  - { state: MN }
+  - { state: MS }
+  - { state: MO }
+  - { state: MT }
+  - { state: NE }
+  - { state: NV }
+  - { state: NH }
+  - { state: NJ }
+  - { state: NM }
+  - { state: NY }
+  - { state: NC }
+  - { state: ND }
+  - { state: OH }
+  - { state: OK }
+  - { state: OR }
+  - { state: PA }
+  - { state: RI }
+  - { state: SC }
+  - { state: SD }
+  - { state: TN }
+  - state: TX
+    note: >-
+      Texas deadlines are month-based rather than day-based and differ sharply
+      between residential and commercial work, and by tier. The day-count model
+      here may not express the rule faithfully; check before verifying.
+  - { state: UT }
+  - { state: VT }
+  - { state: VA }
+  - { state: WA }
+  - { state: WV }
+  - { state: WI }
+  - { state: WY }

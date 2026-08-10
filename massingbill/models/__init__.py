@@ -48,6 +48,14 @@ from .compliance import (
     ComplianceKind,
     ComplianceRequirement,
 )
+from .deadline import (
+    DEADLINE_LABELS,
+    ClaimantRole,
+    DayBasis,
+    DeadlineAnchor,
+    DeadlineKind,
+    DeadlineRule,
+)
 from .organization import (
     INTERNAL_ROLES,
     ROLE_LABELS,
@@ -90,6 +98,7 @@ from .waiver import (
 __all__ = [
     "ALL_WEBHOOK_EVENTS",
     "COMPLIANCE_LABELS",
+    "DEADLINE_LABELS",
     "EDITABLE_STATUSES",
     "GENESIS_HASH",
     "INTERNAL_ROLES",
@@ -108,11 +117,16 @@ __all__ = [
     "ChangeOrderLine",
     "ChangeOrderStatus",
     "ChangeOrderType",
+    "ClaimantRole",
     "ComplianceDoc",
     "ComplianceKind",
     "ComplianceRequirement",
     "ContractParty",
     "CostCode",
+    "DayBasis",
+    "DeadlineAnchor",
+    "DeadlineKind",
+    "DeadlineRule",
     "DeliveryStatus",
     "FormStyle",
     "Invitation",

@@ -42,6 +42,7 @@
         <a class="button button-quiet" href="{{ url_for('workflow.waivers', project_id=project.id) }}">Lien waivers</a>
         <a class="button button-quiet" href="{{ url_for('workflow.compliance', project_id=project.id) }}">Compliance</a>
         <a class="button button-quiet" href="{{ url_for('workflow.subcontracts', project_id=project.id) }}">Subcontracts</a>
+        <a class="button button-quiet" href="{{ url_for('workflow.deadlines', project_id=project.id) }}">Deadlines</a>
       </div>
     {% else %}
       <p class="note">

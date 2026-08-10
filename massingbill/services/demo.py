@@ -41,6 +41,7 @@ from massingbill.services import accounts, seeding
 from massingbill.services import application as app_service
 from massingbill.services import change_order as co_service
 from massingbill.services import compliance as compliance_service
+from massingbill.services import deadlines as deadline_service
 from massingbill.services import payments as payment_service
 from massingbill.services import sov as sov_service
 from massingbill.services import subcontracts as sub_service
@@ -85,6 +86,7 @@ def build(*, email: str = DEMO_EMAIL, password: str = DEMO_PASSWORD) -> Demo:
     organization = accounts.create_organization("Northgate Builders", user)
     seeding.seed_cost_codes(organization)
     waiver_service.seed_templates(organization)
+    deadline_service.seed_rules(organization)
 
     owner = ContractParty(
         organization_id=organization.id,

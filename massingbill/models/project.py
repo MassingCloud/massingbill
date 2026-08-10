@@ -182,6 +182,14 @@ class Project(UuidPrimaryKeyMixin, TimestampMixin, Base):
     is_residential: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     stories: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    #: The events statutory deadlines count from (``services/deadlines.py``).
+    #: Kept on the project rather than derived from the applications: first
+    #: furnishing is often earlier than the first billing period, and last
+    #: furnishing is a fact about the work rather than about the paperwork.
+    first_furnishing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_furnishing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notice_of_completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     status: Mapped[ProjectStatus] = mapped_column(
         String(32), nullable=False, default=ProjectStatus.PLANNING
     )

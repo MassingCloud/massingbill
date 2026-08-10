@@ -521,6 +521,38 @@ class WebhookForm(FlaskForm):
     submit = SubmitField("Add the subscription")
 
 
+class VerifyDeadlineForm(FlaskForm):
+    """Record a statutory day count that somebody actually read.
+
+    The citation is required, not optional. A day count without a source is
+    indistinguishable from a guess six months later, and the whole point of the
+    unverified default is that guesses do not get to become dates.
+    """
+
+    days = IntegerField("Days", validators=[DataRequired()])
+    citation = StringField(
+        "Citation",
+        validators=[DataRequired(), Length(max=500)],
+        description="The section you read this number out of.",
+    )
+    anchor = SelectField(
+        "Counts from",
+        choices=[
+            ("first_furnishing", "First furnishing"),
+            ("last_furnishing", "Last furnishing"),
+            ("substantial_completion", "Substantial completion"),
+            ("notice_of_completion", "Notice of completion"),
+        ],
+        validators=[Optional()],
+    )
+    day_basis = SelectField(
+        "Day basis",
+        choices=[("calendar", "Calendar days"), ("business", "Business days")],
+        validators=[Optional()],
+    )
+    submit = SubmitField("Mark verified")
+
+
 __all__ = [
     "US_STATES",
     "ApiKeyForm",
@@ -550,6 +582,7 @@ __all__ = [
     "StoredMaterialForm",
     "SubApplicationForm",
     "SubcontractForm",
+    "VerifyDeadlineForm",
     "VerifyTemplateForm",
     "VoidForm",
     "WaiverRequestForm",

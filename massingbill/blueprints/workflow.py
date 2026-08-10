@@ -15,6 +15,7 @@ released their lien rights.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, TypeVar
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
@@ -26,6 +27,8 @@ from massingbill.models import (
     Application,
     ChangeOrder,
     ComplianceKind,
+    DayBasis,
+    DeadlineAnchor,
     PrimeContract,
     Project,
     Subcontract,
@@ -44,6 +47,7 @@ from massingbill.services.rbac import (
     COMPLIANCE_READ,
     COMPLIANCE_WRITE,
     PROJECT_READ,
+    PROJECT_UPDATE,
     SUBCONTRACT_READ,
     SUBCONTRACT_WRITE,
     WAIVER_READ,
@@ -529,3 +533,67 @@ def receive_billing(project_id: str, subcontract_id: str) -> Any:
     db.session.commit()
     flash("Billing recorded. Retainage was recomputed from the subcontract.", "success")
     return redirect(url_for("workflow.subcontracts", project_id=project_id))
+
+
+# ── Statutory deadlines ─────────────────────────────────────────────────────
+
+
+@bp.get("/deadlines")
+@login_required
+@require_permission(PROJECT_READ)
+def deadlines(project_id: str) -> Any:
+    from massingbill.blueprints.forms import VerifyDeadlineForm
+    from massingbill.services import deadlines as deadline_service
+
+    project = _project(project_id)
+
+    return render_template(
+        "workflow/deadlines.html",
+        project=project,
+        obligations=deadline_service.compute(project),
+        unverified=deadline_service.unverified_rules(
+            project.organization_id, project.jurisdiction_state
+        ),
+        today=date.today(),
+        form=VerifyDeadlineForm(),
+        can_write=has_permission(PROJECT_UPDATE),
+    )
+
+
+@bp.post("/deadlines/<rule_id>/verify")
+@login_required
+@require_permission(PROJECT_UPDATE)
+def verify_deadline(project_id: str, rule_id: str) -> Any:
+    from massingbill.blueprints.forms import VerifyDeadlineForm
+    from massingbill.models import DeadlineRule
+    from massingbill.services import deadlines as deadline_service
+
+    _project(project_id)
+    rule = get_scoped_or_404(DeadlineRule, rule_id)
+    form = VerifyDeadlineForm()
+
+    if not form.validate_on_submit():
+        _flash_errors(form)
+        return redirect(url_for("workflow.deadlines", project_id=project_id))
+
+    try:
+        deadline_service.verify_rule(
+            rule,
+            days=_required(form.days.data, "Days"),
+            citation=_required(form.citation.data, "Citation"),
+            anchor=DeadlineAnchor(form.anchor.data) if form.anchor.data else None,
+            day_basis=DayBasis(form.day_basis.data) if form.day_basis.data else None,
+            actor=current_user,
+        )
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+        return redirect(url_for("workflow.deadlines", project_id=project_id))
+
+    db.session.commit()
+    flash(
+        f"{rule.state} {rule.kind_label} verified at {rule.days} days. "
+        "Check it against the statute once more before you rely on it.",
+        "success",
+    )
+    return redirect(url_for("workflow.deadlines", project_id=project_id))
