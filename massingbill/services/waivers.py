@@ -46,7 +46,7 @@ from massingbill.models import (
     WaiverType,
 )
 from massingbill.models.base import utcnow
-from massingbill.services import audit
+from massingbill.services import audit, events
 from massingbill.services.money import Cents, cents, to_display
 
 SEED_DIR = Path(__file__).resolve().parent.parent / "data" / "seed" / "waivers"
@@ -387,6 +387,7 @@ def sign(
         actor_id=signer.id if signer else None,
         actor_label=signer.email if signer else signature.signer_email,
     )
+    events.waiver_signed(waiver)
     return signature
 
 

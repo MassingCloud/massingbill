@@ -1,0 +1,541 @@
+openapi: 3.1.0
+info:
+  title: Massing Bill API
+  version: "1.0.0"
+  description: |
+    The monthly requisition as data: schedule of values, G702/G703-format
+    applications for payment, change orders, and the **reconciliation** that
+    says whether the numbers tie.
+
+    **Money is integer cents.** Every amount is an object carrying `cents` (an
+    integer, authoritative) and `amount` (the same value as a decimal string).
+    There are no floating-point amounts anywhere in this API, in either
+    direction. A client that computes with `amount` instead of `cents` will
+    eventually disagree with the engine by a penny, and a penny is what gets a
+    pay application rejected.
+
+    **Auth.** Send `Authorization: Bearer <api_key>` (or `X-Api-Key: <api_key>`).
+    Keys are organization-scoped, carry an explicit scope list, and are shown
+    exactly once at creation. A key with no scopes specified is read-only.
+
+    **Conventions** are shared with the massing.cloud API on purpose (resource
+    nouns, auth header shape, error-code table, `X-Massing-Signature` on
+    webhooks), so a client written against one reads the other.
+  contact:
+    name: Massing Bill
+    url: https://github.com/MassingCloud/massingbill
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8000
+    description: A standalone install
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: system
+  - name: projects
+  - name: applications
+  - name: change-orders
+
+paths:
+  /api/massingbill/v1/status:
+    get:
+      tags: [system]
+      operationId: getStatus
+      summary: Confirm a key works, and report what it may do
+      description: |
+        Requires a valid key but no particular scope. A narrowly scoped key
+        still needs to be able to answer "am I alive, and what am I allowed to
+        do" without that call itself failing on a scope.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      organization_id: { type: string }
+                      scopes: { type: array, items: { type: string } }
+                      formats: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /api/massingbill/v1/projects:
+    get:
+      tags: [projects]
+      operationId: listProjects
+      summary: List projects
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Paginated'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Project' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/massingbill/v1/projects/{project_id}:
+    get:
+      tags: [projects]
+      operationId: getProject
+      summary: One project, with its prime contracts
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/massingbill/v1/projects/{project_id}/schedule-of-values:
+    get:
+      tags: [projects]
+      operationId: getScheduleOfValues
+      summary: The current schedule of values
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ScheduleOfValues' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/massingbill/v1/applications:
+    get:
+      tags: [applications]
+      operationId: listApplications
+      summary: List applications for payment
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: project_id
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, submitted, certified, paid, void]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Paginated'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Application' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/massingbill/v1/applications/{application_id}:
+    get:
+      tags: [applications]
+      operationId: getApplication
+      summary: One application, with its G703 continuation lines
+      parameters:
+        - $ref: '#/components/parameters/ApplicationId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Application' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/massingbill/v1/applications/{application_id}/tieout:
+    get:
+      tags: [applications]
+      operationId: getTieout
+      summary: The reconciliation — does this application balance?
+      description: |
+        The reason this API exists. An integration can ask "does this balance,
+        and if not, which rule failed" without parsing a PDF.
+      parameters:
+        - $ref: '#/components/parameters/ApplicationId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/TieoutReport' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/massingbill/v1/applications/{application_id}/document.{fmt}:
+    get:
+      tags: [applications]
+      operationId: getApplicationDocument
+      summary: Render the application
+      description: |
+        `pdf` and `xlsx` are present only when the optional render extra is
+        installed; `GET /status` lists what this deployment can produce.
+      parameters:
+        - $ref: '#/components/parameters/ApplicationId'
+        - name: fmt
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [pdf, xlsx, csv, json, html]
+      responses:
+        '200':
+          description: The rendered document
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+            text/csv: { schema: { type: string } }
+            application/json: { schema: { type: object } }
+            text/html: { schema: { type: string } }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/massingbill/v1/applications/{application_id}/submit:
+    post:
+      tags: [applications]
+      operationId: submitApplication
+      summary: Freeze and submit an application
+      description: |
+        Runs the tie-out engine first and refuses on any blocking finding —
+        the same rules the interface applies. The API does not get a quieter
+        version of them.
+      parameters:
+        - $ref: '#/components/parameters/ApplicationId'
+      responses:
+        '200':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Application' }
+        '400':
+          description: The application does not tie out
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Error'
+                  - type: object
+                    properties:
+                      details:
+                        type: object
+                        properties:
+                          findings:
+                            type: array
+                            items: { $ref: '#/components/schemas/Finding' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/massingbill/v1/change-orders:
+    get:
+      tags: [change-orders]
+      operationId: listChangeOrders
+      summary: List change orders
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Paginated'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/ChangeOrder' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: mbil_key
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      description: Capped at 200. A larger request is capped, not rejected.
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      schema: { type: string }
+    ApplicationId:
+      name: application_id
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    Unauthenticated:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: The key does not carry the required scope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: |
+        No such resource in this organization. A resource belonging to another
+        organization is also 404 — 403 would confirm the id is real.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: A state machine or a limit refused the operation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationFailed:
+      description: The request was malformed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: A stable machine-readable code.
+          enum:
+            - validation_error
+            - unauthenticated
+            - forbidden
+            - not_found
+            - conflict
+            - entitlement_denied
+            - adapter_unavailable
+            - rate_limited
+            - internal_error
+        message: { type: string }
+        details: { type: object }
+
+    Money:
+      type: object
+      description: |
+        An amount, in both forms. `cents` is authoritative; `amount` is the
+        same number as a decimal string for systems that will not accept
+        integer minor units. Never a float.
+      required: [cents, amount, currency]
+      properties:
+        cents: { type: integer, examples: [34700000] }
+        amount: { type: string, examples: ["347000.00"] }
+        currency: { type: string, examples: ["USD"] }
+
+    Paginated:
+      type: object
+      properties:
+        meta:
+          type: object
+          properties:
+            page: { type: integer }
+            per_page: { type: integer }
+            total: { type: integer }
+            pages: { type: integer }
+
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        number: { type: string }
+        name: { type: string }
+        status: { type: string }
+        jurisdiction_state:
+          type: string
+          description: Two-letter state, which drives statutory retainage caps.
+        created_at: { type: string, format: date-time }
+        contracts:
+          type: array
+          items: { $ref: '#/components/schemas/PrimeContract' }
+
+    PrimeContract:
+      type: object
+      properties:
+        id: { type: string }
+        project_id: { type: string }
+        original_contract_sum: { $ref: '#/components/schemas/Money' }
+        retainage_mode:
+          type: string
+          nullable: true
+          enum: [flat, split, variable_line, stepped, null]
+
+    ScheduleOfValues:
+      type: object
+      properties:
+        id: { type: string }
+        revision: { type: integer }
+        status: { type: string, enum: [draft, approved, superseded] }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              item_no: { type: string }
+              description: { type: string }
+              csi_code: { type: string }
+              scheduled_value: { $ref: '#/components/schemas/Money' }
+
+    Application:
+      type: object
+      description: |
+        The G702 header lines, named for the line they are. Line 5 is the total
+        retainage, split into 5a (completed work) and 5b (stored material).
+      properties:
+        id: { type: string }
+        number: { type: integer }
+        status: { type: string, enum: [draft, submitted, certified, paid, void] }
+        period_start: { type: string, format: date }
+        period_end: { type: string, format: date }
+        line1_original_contract_sum: { $ref: '#/components/schemas/Money' }
+        line2_net_change_orders: { $ref: '#/components/schemas/Money' }
+        line3_contract_sum_to_date: { $ref: '#/components/schemas/Money' }
+        line4_completed_stored: { $ref: '#/components/schemas/Money' }
+        line5_retainage: { $ref: '#/components/schemas/Money' }
+        line5a_retainage_work: { $ref: '#/components/schemas/Money' }
+        line5b_retainage_stored: { $ref: '#/components/schemas/Money' }
+        line6_total_earned_less_retainage: { $ref: '#/components/schemas/Money' }
+        line7_previous_certificates: { $ref: '#/components/schemas/Money' }
+        line8_current_payment_due: { $ref: '#/components/schemas/Money' }
+        line9_balance_to_finish: { $ref: '#/components/schemas/Money' }
+        certified_payment: { $ref: '#/components/schemas/Money' }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/ApplicationLine' }
+
+    ApplicationLine:
+      type: object
+      description: G703 continuation-sheet columns.
+      properties:
+        item_no: { type: string }
+        description: { type: string }
+        col_c_scheduled_value: { $ref: '#/components/schemas/Money' }
+        col_d_previous: { $ref: '#/components/schemas/Money' }
+        col_e_this_period: { $ref: '#/components/schemas/Money' }
+        col_f_stored: { $ref: '#/components/schemas/Money' }
+        col_g_completed_stored: { $ref: '#/components/schemas/Money' }
+        col_h_balance_to_finish: { $ref: '#/components/schemas/Money' }
+        col_i_retainage: { $ref: '#/components/schemas/Money' }
+
+    ChangeOrder:
+      type: object
+      properties:
+        id: { type: string }
+        number: { type: string }
+        description: { type: string }
+        status: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        approved_date: { type: string, format: date, nullable: true }
+
+    Finding:
+      type: object
+      properties:
+        rule_id: { type: string, examples: ["G702-006"] }
+        severity: { type: string, enum: [error, warning, info] }
+        message: { type: string }
+        citation: { type: string }
+
+    TieoutReport:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: False when any finding has severity `error`.
+        summary: { type: string }
+        findings:
+          type: array
+          items: { $ref: '#/components/schemas/Finding' }
+
+  # Not referenced by any path: these are what we POST to a subscriber, not
+  # something this API serves. Documented here so a subscriber has one place to
+  # look, and so the payload shapes are versioned alongside the API.
+  x-webhooks:
+    signature: |
+      Lowercase hex HMAC-SHA256 over the exact request body, in the
+      X-Massing-Signature header. Identical to massing.cloud's scheme:
+
+          hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+      The event name is repeated in X-Massing-Event and the delivery id in
+      X-Massing-Delivery. Verify against the raw bytes, not a re-serialization.
+    envelope:
+      type: object
+      properties:
+        event:
+          type: string
+          enum:
+            - application.submitted
+            - application.certified
+            - application.paid
+            - waiver.signed
+            - co.approved
+            - tieout.failed
+        organization_id: { type: string }
+        occurred_at: { type: string, format: date-time }
+        data: { type: object }

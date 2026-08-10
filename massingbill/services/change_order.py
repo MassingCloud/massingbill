@@ -30,7 +30,7 @@ from massingbill.models import (
     SovLine,
     User,
 )
-from massingbill.services import audit
+from massingbill.services import audit, events
 from massingbill.services.money import Cents, cents
 
 
@@ -198,6 +198,7 @@ def approve(
         actor_id=actor.id if actor else None,
         actor_label=actor.email if actor else "",
     )
+    events.change_order_approved(order)
     return order
 
 

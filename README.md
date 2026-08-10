@@ -72,19 +72,21 @@ tie-out rule set; the G702/G703 layout is one of several renderers over it.
 
 ## Status
 
-**Phases P0–P5 are complete, and P6 is most of the way there.** The money
-kernel, the tenant and authorization model, the period engine, 35 tie-out rules
-and the whole document set are built and tested. A ten-period golden project
-with hand-computed G702 headers reproduces every figure exactly, every period
-passes tie-out, and the [published demo](https://massingcloud.github.io/massingbill/)
-is that same engine's real output.
+**The engine, the documents, the workflow services and the API are done.** A
+ten-period golden project with hand-computed G702 headers reproduces every
+figure exactly, every period passes tie-out, and the
+[published demo](https://massingcloud.github.io/massingbill/) is that same
+engine's real output.
 
-What remains in P6 is the web UI over the workflow services, which exist and are
-tested but are reachable today only through the API and the CLI.
+What remains is the web UI over the P6 workflow services — waivers, compliance,
+subcontracts and payments are built and tested, but reachable today through the
+REST API and the CLI rather than through a screen.
 
 See [`SPEC.md`](SPEC.md) for the full plan and the phase-by-phase acceptance
-criteria, and [`docs/competitive-upgrades.md`](docs/competitive-upgrades.md) for
-the Textura / GCPay / Handle review that shaped the later phases.
+criteria, [`docs/competitive-upgrades.md`](docs/competitive-upgrades.md) for the
+Textura / GCPay / Handle review that shaped the later phases, and
+[`docs/massing-integration.md`](docs/massing-integration.md) for what folding
+this back into massing.cloud actually requires.
 
 | Phase | Scope | State |
 |---|---|---|
@@ -94,10 +96,11 @@ the Textura / GCPay / Handle review that shaped the later phases.
 | P3 | The requisition engine (G702/G703, retainage, change orders, stored materials) | **done** |
 | P4 | Tie-out rule engine — 35 rules | **done** |
 | P5 | PDF / XLSX / CSV / JSON documents | **done** |
-| P6 | Lien waivers, e-signature, compliance, subcontracts, payments | **done** |
-| P6 | The web UI over them | next |
+| P6 | Lien waivers, e-signature, compliance, subcontracts, payments | **services done** |
+| P7a | REST API, API keys, webhooks, OpenAPI 3.1, Python SDK | **done** |
+| P6 | The web UI over those services | next |
 | P6.5 | Statutory deadline engine | |
-| P7 | REST API, webhooks, OIDC, S3, Procore / QuickBooks / Sage | |
+| P7b | OIDC, S3, Procore / QuickBooks / Sage adapters | |
 | P8 | Hardening, ops runbook, **v1.0.0** | |
 | P9–P10 | *Optional:* massing.cloud adapter, WordPress bridge | |
 
@@ -129,6 +132,44 @@ lint-imports
 PDF rendering needs the WeasyPrint native stack (pango, cairo). Install
 `.[render]` and the system libraries, or just use the container — the image
 carries them.
+
+## The API
+
+`/api/massingbill/v1`, documented in
+[`docs/openapi/massingbill-v1.yaml`](docs/openapi/massingbill-v1.yaml) and
+CI-checked against Flask's own URL map in both directions — an undocumented
+route and a documented route that does not exist are both build failures.
+
+```bash
+massingbill apikey mint --organization <id> --name "ERP sync" --scope application:read
+```
+
+The token is printed once; only its SHA-256 digest is stored. Keys are
+organization-scoped, carry explicit scopes drawn from the same vocabulary as
+roles, and default to read-only when no scope is given.
+
+```python
+from massingbill_client import MassingBillClient
+
+client = MassingBillClient(api_key="mbil_...")
+for application in client.applications(status="submitted"):
+    report = client.tieout(application["id"])
+    if not report["ok"]:
+        print(application["number"], report["summary"])
+```
+
+**Every amount is an object** carrying `cents` (integer, authoritative) and
+`amount` (decimal string). There is no floating-point money anywhere in the API,
+in either direction.
+
+**Webhooks** are queued in the same transaction as the change that caused them
+and sent by `massingbill webhooks drain`, never inside a request — an event
+announced before its transaction commits may announce something that then rolls
+back. Signing is lowercase hex HMAC-SHA256 of the raw body in
+`X-Massing-Signature`, byte-identical to massing.cloud's scheme, and the test
+suite verifies it against massing's own published verifier. Failed deliveries
+retry with exponential backoff, and the delivery log keeps what was actually
+sent — "did you send it?" is the first question in every integration dispute.
 
 ## Configuration
 

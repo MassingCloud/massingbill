@@ -48,8 +48,13 @@ form definitions, the data model and the phase plan with acceptance criteria.
 | `services/entitlement/` | `base` · `standalone` (default) · `massing_cloud` (P9) |
 | `services/identity/` | `base` · `local` (default) · `oidc` (P7) |
 | `services/storage/` | `base` · `local` (default) · `s3` (P7) · `massing_vault` (P9) |
-| `services/integrations/` | Procore, QBO, Sage (P7). Never imported by the core. |
-| `blueprints/` | `health` · `main`; the rest arrive per phase |
+| `services/integrations/` | Procore, QBO, Sage (P7b). Never imported by the core. |
+| `services/apikeys.py` | Minting and verifying `mbil_` keys. Only the digest is stored. |
+| `services/webhooks.py` | Signing, queueing, delivery, retry. **Never sends in a request.** |
+| `services/events.py` | Every webhook payload shape, in one place. |
+| `blueprints/api.py` | `/api/massingbill/v1`. Authenticates to an `ApiPrincipal`, then reuses `rbac.scoped`. |
+| `docs/openapi/` | `massingbill-v1.yaml`, CI-checked against the URL map both ways. |
+| `sdk/python/` | Dependency-light client. Not packaged with the app. |
 
 ## Testability contract
 The suite runs **offline and deterministically** on SQLite with zero
