@@ -6,6 +6,54 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-10
+
+### Added — a dependency-free core
+
+- **`massingbill/core/`**: `money`, `retainage`, `requisition` (the G702 header
+  and G703 continuation sheet) and `enums`. **Zero runtime dependencies,
+  standard library only.** A pay application can now be computed from plain
+  dataclasses with no database session in scope.
+- `tests/test_architecture.py` fails the build if the core gains a runtime
+  dependency, imports the rest of the application, or stops loading with only
+  the standard library reachable. A CI job installs nothing at all — not even
+  the package — and imports it.
+- `scripts/make_vendor_kit.py` and `check_vendor_drift.py`: a vendorable copy
+  with a SHA-256 per file and the commit it came from. The generator **refuses
+  a dirty tree**; the checker detects drift in both directions, because a file
+  *added* to a vendored copy is the local fix upstream never hears about.
+- `massingbill/core/tests/test_mb_*.py`: the suite that travels with the core.
+  Deliberately not pytest — plain `assert` and a `__main__` runner — so it runs
+  in a consuming repo's harness whatever that harness is.
+
+### Changed
+
+- The Flask factory moved to `massingbill/app.py`. `massingbill/__init__.py`
+  resolves `create_app` through PEP 562, so every caller and the console entry
+  point are unaffected. Without this, importing `massingbill.core` ran
+  `__init__` and loaded Flask — the property was false before anyone tried to
+  vendor it.
+- `RetainageMode` is defined in `core/enums.py` and re-exported by
+  `models/project.py`, so there is exactly one definition and a persisted value
+  cannot drift from the value the engine branches on.
+- `services/retainage.py` is now an adapter: it turns the stored
+  `RetainageRule` row into a plain `RetainageSpec` and calls the core.
+- `services/money.py` re-exports the core's `__all__` rather than keeping a
+  second list of names.
+- The money-discipline gate follows the kernel to `core/money.py`. It had
+  exempted `services/money.py` by path, so it flagged the kernel the moment the
+  kernel moved.
+
+### Fixed
+
+- `massingbill.core` raises a plain "needs Python 3.11 or newer" instead of
+  surfacing `cannot import name 'StrEnum' from 'enum'`, which pointed at the
+  standard library rather than at the version. Found by using the vendor kit
+  the way a consumer would rather than by reading it.
+
+Nothing in the requisition arithmetic changed. The full suite passes unchanged,
+which is the point: this is a move, not a rewrite.
+
 ## [1.0.0] — 2026-08-09
 
 The first release intended for real projects. Everything below was built and

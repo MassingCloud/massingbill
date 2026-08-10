@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to build the kit from
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  vendor-kit:
+    name: Attach the vendor kit
+    runs-on: ubuntu-latest
+    # The kit is a build artefact, not a tracked directory: committing a
+    # generated copy of the core guarantees it drifts from its generator, and
+    # then nobody knows which one is real. It is produced from the tag, which is
+    # by definition a clean tree, so the pin it records describes exactly what
+    # it contains.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The generator refuses a dirty tree and reads the commit from git, so
+          # it needs real history rather than a detached shallow checkout.
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the kit
+        # No `pip install`. If the generator or the core needed anything, this
+        # step would say so -- which is the same claim the `core` CI job makes,
+        # tested again at the point somebody actually downloads it.
+        run: python scripts/make_vendor_kit.py vendor-kit
+
+      - name: Verify the kit against its own manifest
+        run: python vendor-kit/check_vendor_drift.py vendor-kit
+
+      - name: Run the travelling suite the way a consumer runs it
+        run: |
+          shopt -s nullglob
+          found=0
+          for suite in vendor-kit/massingbill/core/tests/test_mb_*.py; do
+            python "$suite"
+            found=$((found + 1))
+          done
+          test "$found" -gt 0 || { echo "the kit carries no tests"; exit 1; }
+
+      - name: Prove drift is actually detected
+        # A checker that never fails is a checker nobody should trust. This
+        # tampers with a file, requires a non-zero exit, then restores it.
+        run: |
+          cp vendor-kit/massingbill/core/money.py /tmp/money.bak
+          echo "# tampered" >> vendor-kit/massingbill/core/money.py
+          if python vendor-kit/check_vendor_drift.py vendor-kit; then
+            echo "drift went undetected"; exit 1
+          fi
+          cp /tmp/money.bak vendor-kit/massingbill/core/money.py
+          python vendor-kit/check_vendor_drift.py vendor-kit
+
+      - name: Package it
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          tar -czf "massingbill-core-${tag}.tar.gz" -C vendor-kit .
+          sha256sum "massingbill-core-${tag}.tar.gz" > "massingbill-core-${tag}.tar.gz.sha256"
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            massingbill-core-*.tar.gz
+            massingbill-core-*.tar.gz.sha256
+          fail_on_unmatched_files: true
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vendor-kit
+          path: |
+            massingbill-core-*.tar.gz
+            massingbill-core-*.tar.gz.sha256

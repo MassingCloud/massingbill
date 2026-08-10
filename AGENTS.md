@@ -20,9 +20,10 @@ form definitions, the data model and the phase plan with acceptance criteria.
 1. **Money is integer cents in `BIGINT`.** No float, no `Numeric` on the money
    path. Declare monetary columns only via `models.base.money_column`.
 2. **Percentages are basis points** (`int`, 1 bp = 0.01%). `10%` is `1000`.
-3. **All money arithmetic goes through `services/money.py`** (lands in P1).
+3. **All money arithmetic goes through `core/money.py`.**
    Round `ROUND_HALF_UP` at exactly one site per computation, then run the
-   penny-reconciliation pass so `Σ lines == header`.
+   penny-reconciliation pass so `Σ lines == header`. (`services/money.py` is a
+   re-export kept for the sixty-odd modules that import it.)
 4. **Retainage is computed per line and summed.** Never header-down.
 5. **Submitted applications are immutable.** Freeze a hashed snapshot; column D
    and G702 line 7 are derived from the prior application and written once at
@@ -35,10 +36,18 @@ form definitions, the data model and the phase plan with acceptance criteria.
    The disclaimer footer is not removable from the `aia_style` renderer.
 9. **Statutory content is effective-dated data, not code.** Retainage caps and
    lien-waiver text live in YAML with a citation and an effective date.
+10. **`massingbill/core/` has zero runtime dependencies.** Standard library
+    only — no Flask, no SQLAlchemy, no third-party package, and no import from
+    the rest of `massingbill` except the core itself. If the core needs an enum,
+    move the enum in and re-export it from its old home.
+    `tests/test_architecture.py` fails the build on a violation; see
+    `docs/vendorable-core.md`.
 
 ## Where things live (`massingbill/`)
 | Path | Contents |
 |---|---|
+| `core/` | **Zero dependencies.** `money` · `retainage` · `requisition` (G702/G703) · `enums`. Vendorable. |
+| `app.py` | The Flask factory. Split out of `__init__` so importing the core does not load Flask. |
 | `config.py` | `Settings` (pydantic-settings, `MASSINGBILL_` prefix). Every default works offline. |
 | `extensions.py` | `db`, `migrate`, `csrf`, `login_manager`, `limiter` |
 | `security.py` | argon2id, signed tokens, HMAC webhook signing, CSP + headers |

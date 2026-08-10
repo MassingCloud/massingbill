@@ -140,6 +140,40 @@ backup actually restores), upgrades, the cron jobs, what to do when something is
 wrong, and key rotation. Written to be followed by someone who did not build
 this.
 
+## The core is vendorable
+
+`massingbill/core/` is the calculation with nothing attached: **zero runtime
+dependencies, standard library only**. No Flask, no SQLAlchemy, no session.
+
+```python
+from massingbill.core import LineEntry, RetainageSpec, cents, compute_application
+
+app = compute_application(
+    [LineEntry("001", cents(100_000_00), this_period=cents(40_000_00))],
+    original_contract_sum=cents(100_000_00),
+    retainage=RetainageSpec(rate_work_bp=500),
+)
+app.line8_current_payment_due  # int, cents
+app.ties_out()  # the arithmetic identities hold
+```
+
+Everything else — `models/`, `services/`, `blueprints/` — is an adapter over it.
+That means the arithmetic deciding what a contractor is paid does not depend on
+a web framework being importable, and it can be copied into another codebase
+without dragging one along.
+
+[`tests/test_architecture.py`](tests/test_architecture.py) fails the build if the
+core gains a dependency, and a CI job installs *nothing at all* and imports it —
+so the claim is measured rather than asserted.
+
+```bash
+python scripts/make_vendor_kit.py
+```
+
+Produces a copy with a SHA-256 per file, the commit it came from, and a
+stdlib-only drift checker. It refuses to run on a dirty tree, because a pin that
+might be wrong is worse than none. See [`docs/vendorable-core.md`](docs/vendorable-core.md).
+
 ## The API
 
 `/api/massingbill/v1`, documented in
