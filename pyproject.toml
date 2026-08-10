@@ -120,7 +120,24 @@ markers = [
 
 [tool.coverage.run]
 source = ["massingbill"]
-omit = ["*/migrations/*", "*/tests/*"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    # The optional adapters, which the main test job deliberately does not
+    # install -- that is the whole point of it. Their tests skip there, so
+    # measuring them would be measuring code the job cannot run, and the number
+    # would fall every time an adapter was added.
+    #
+    # They are not unmeasured: the `adapters` CI job installs every extra and
+    # runs the `adapter`-marked tests against them. Kept in step with
+    # `massingbill/optional.py`, which is the single source of truth for what
+    # counts as optional.
+    "*/services/entitlement/massing_cloud.py",
+    "*/services/identity/oidc.py",
+    "*/services/storage/s3.py",
+    "*/services/storage/massing_vault.py",
+    "*/services/integrations/*",
+]
 
 [tool.coverage.report]
 exclude_lines = [

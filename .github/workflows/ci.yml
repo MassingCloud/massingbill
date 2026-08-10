@@ -210,6 +210,26 @@ jobs:
       - name: The suite must still be green
         run: pytest -q
 
+  adapters:
+    name: Adapters (every extra installed)
+    runs-on: ubuntu-latest
+    # The mirror image of `no-adapters`. That job proves the product works with
+    # every optional adapter deleted; this one proves the adapters themselves
+    # work when they are present. Neither job alone says much: the first would
+    # pass if the adapters were broken, and the second would pass if the core
+    # secretly depended on them.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev,render,oidc,s3]"
+      - name: The adapter suite must be green
+        # Fails rather than skips when nothing matched, so a marker typo cannot
+        # turn this job into a green no-op.
+        run: pytest -q -m adapter | tee /dev/stderr | grep -qv "no tests ran"
+
   imports:
     name: Import contracts
     runs-on: ubuntu-latest
