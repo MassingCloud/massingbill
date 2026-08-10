@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Stored materials — #{{ application.number }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  <a href="{{ url_for('applications.show', project_id=project.id, application_id=application.id) }}">#{{ application.number }}</a> /
+  Stored materials
+</nav>
+
+<h1>Stored materials</h1>
+<p class="lede">
+  Material paid for but not yet installed sits in column F. When it installs it
+  moves to column E, and the line total does not move &mdash; that is the point.
+  Billing the same material twice is the most common way a pay application is
+  rejected.
+</p>
+
+{% if materials %}
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Description</th><th>Location</th><th class="num">Value</th>
+      <th>Supplier</th><th>Invoice</th><th>Bond</th><th>Installed</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for mat in materials %}
+    <tr>
+      <td>{{ mat.description }}</td>
+      <td>
+        {{ mat.location }}
+        {% if mat.location != "onsite" and not mat.bond_ref %}
+          <span class="warn">unbonded</span>
+        {% endif %}
+      </td>
+      <td class="num">{{ mat.value_cents | money }}</td>
+      <td>{{ mat.supplier or "—" }}</td>
+      <td>{{ mat.invoice_ref or "—" }}</td>
+      <td>{{ mat.bond_ref or "—" }}</td>
+      <td>{% if mat.installed_on %}{{ mat.installed_on }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if can_write and application.is_editable %}
+<form method="post" action="{{ url_for('applications.apply_materials', project_id=project.id, application_id=application.id) }}" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="button">Apply to this period</button>
+</form>
+{% endif %}
+{% else %}
+<p class="empty">No stored material recorded.</p>
+{% endif %}
+
+{% if can_write %}
+<section class="panel">
+  <h2>Record material</h2>
+  <form method="post" action="{{ url_for('applications.add_material', project_id=project.id, application_id=application.id) }}">
+    {{ form.csrf_token }}
+    {{ m.field(form.sov_line_id) }}
+    {{ m.field(form.description) }}
+    <div class="row">
+      {{ m.field(form.value) }}
+      {{ m.field(form.location) }}
+    </div>
+    <div class="row">
+      {{ m.field(form.supplier) }}
+      {{ m.field(form.invoice_ref) }}
+      {{ m.field(form.bond_ref) }}
+    </div>
+    {{ form.submit(class="button") }}
+  </form>
+</section>
+{% endif %}
+{% endblock %}

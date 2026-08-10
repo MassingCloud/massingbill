@@ -12,10 +12,12 @@ from typing import Any
 from flask_wtf import FlaskForm
 from wtforms import (
     BooleanField,
+    DateField,
     Field,
     IntegerField,
     PasswordField,
     SelectField,
+    SelectMultipleField,
     StringField,
     SubmitField,
     TextAreaField,
@@ -264,19 +266,293 @@ class ConfirmForm(FlaskForm):
     submit = SubmitField("Confirm")
 
 
+# ── Applications for payment ────────────────────────────────────────────────
+
+
+class OpenPeriodForm(FlaskForm):
+    """Start the next requisition."""
+
+    period_start = DateField("Period from", validators=[DataRequired()])
+    period_end = DateField("Period to", validators=[DataRequired()])
+    application_date = DateField("Application date", validators=[Optional()])
+    submit = SubmitField("Open the period")
+
+    def validate_period_end(self, field: Field) -> None:
+        if self.period_start.data and field.data and field.data < self.period_start.data:
+            raise ValidationError("The period cannot end before it starts.")
+
+
+class PeriodLineForm(FlaskForm):
+    """One G703 row, as typed.
+
+    Not a ``FieldList``: the number of rows is whatever the schedule of values
+    says, and each row needs its own error slot. The view instantiates one per
+    line with a distinct field prefix.
+    """
+
+    class Meta:
+        # Rows live inside one already-protected POST. A token per row would be
+        # the same token repeated, for no gain.
+        csrf = False
+
+    this_period = MoneyField("Completed this period")
+    stored = MoneyField("Stored to date")
+
+
+class CertifyForm(FlaskForm):
+    """Record what the architect certified, which may not be what was asked.
+
+    The amount is required. Defaulting it to the amount applied for would
+    quietly erase the very difference this exists to capture.
+    """
+
+    amount_certified = MoneyField("Amount certified", required=True)
+    certified_by_label = StringField("Certified by", validators=[DataRequired(), Length(max=200)])
+    reason = TextAreaField(
+        "Reason for any difference",
+        validators=[Optional(), Length(max=2000)],
+        description="Required when the certified amount differs from the amount applied for.",
+    )
+    submit = SubmitField("Record the certificate")
+
+
+class VoidForm(FlaskForm):
+    reason = StringField("Reason", validators=[DataRequired(), Length(max=500)])
+    submit = SubmitField("Void this application")
+
+
+# ── Change orders ───────────────────────────────────────────────────────────
+
+
+class ChangeOrderForm(FlaskForm):
+    number = StringField("Number", validators=[DataRequired(), Length(max=64)])
+    description = StringField("Description", validators=[DataRequired(), Length(max=500)])
+    submit = SubmitField("Create")
+
+
+class ChangeOrderLineForm(FlaskForm):
+    """One line of a change order.
+
+    Either it adjusts an existing schedule line or it creates a new one. The
+    view enforces the either/or, because only the view knows which lines exist.
+    """
+
+    amount = MoneyField("Amount", required=True)
+    sov_line_id = SelectField("Adjusts line", validators=[Optional()], validate_choice=False)
+    new_item_no = StringField("Or create item no.", validators=[Optional(), Length(max=32)])
+    description = StringField("Description", validators=[Optional(), Length(max=500)])
+    csi_code = StringField("CSI division", validators=[Optional(), Length(max=16)])
+    submit = SubmitField("Add line")
+
+
+class ApproveChangeOrderForm(FlaskForm):
+    approved_date = DateField("Approved on", validators=[DataRequired()])
+    submit = SubmitField("Approve")
+
+
+# ── Stored materials ────────────────────────────────────────────────────────
+
+
+class StoredMaterialForm(FlaskForm):
+    sov_line_id = SelectField("Schedule line", validators=[DataRequired()], validate_choice=False)
+    description = StringField("Description", validators=[DataRequired(), Length(max=500)])
+    value = MoneyField("Value", required=True)
+    location = SelectField(
+        "Location",
+        choices=[
+            ("onsite", "On site"),
+            ("bonded_offsite", "Bonded, off site"),
+            ("offsite", "Off site"),
+        ],
+    )
+    supplier = StringField("Supplier", validators=[Optional(), Length(max=200)])
+    invoice_ref = StringField("Invoice reference", validators=[Optional(), Length(max=120)])
+    bond_ref = StringField(
+        "Bond reference",
+        validators=[Optional(), Length(max=120)],
+        description="Off-site material is normally only billable when it is bonded.",
+    )
+    submit = SubmitField("Record the material")
+
+
+# ── Payments ────────────────────────────────────────────────────────────────
+
+
+class PaymentForm(FlaskForm):
+    amount = MoneyField("Amount received", required=True)
+    received_on = DateField("Received on", validators=[DataRequired()])
+    method = SelectField(
+        "Method",
+        choices=[
+            ("check", "Cheque"),
+            ("ach", "ACH"),
+            ("wire", "Wire"),
+            ("joint_check", "Joint cheque"),
+            ("other", "Other"),
+        ],
+    )
+    reference = StringField("Reference", validators=[Optional(), Length(max=120)])
+    joint_payee = StringField(
+        "Joint payee",
+        validators=[Optional(), Length(max=200)],
+        description="Massing Bill records the arrangement. It does not issue the cheque.",
+    )
+    note = TextAreaField("Note", validators=[Optional(), Length(max=2000)])
+    submit = SubmitField("Record the payment")
+
+
+# ── Lien waivers ────────────────────────────────────────────────────────────
+
+
+class WaiverRequestForm(FlaskForm):
+    waiver_type = SelectField(
+        "Type",
+        choices=[
+            ("conditional_progress", "Conditional - progress payment"),
+            ("unconditional_progress", "Unconditional - progress payment"),
+            ("conditional_final", "Conditional - final payment"),
+            ("unconditional_final", "Unconditional - final payment"),
+        ],
+    )
+    claimant_name = StringField("Claimant", validators=[DataRequired(), Length(max=200)])
+    amount = MoneyField("Amount", required=True)
+    through_date = DateField("Through date", validators=[DataRequired()])
+    submit = SubmitField("Issue the waiver")
+
+
+class VerifyTemplateForm(FlaskForm):
+    """Enter the verbatim statutory text for a prescribed form.
+
+    A bare textarea with no placeholder and no example, deliberately: the words
+    have to come from the statute, and a suggestion is the one thing that must
+    not appear here.
+    """
+
+    body = TextAreaField(
+        "Verbatim statutory text",
+        validators=[DataRequired(), Length(min=50)],
+        description="Copy the exact wording from the citation. Do not paraphrase.",
+    )
+    submit = SubmitField("Mark verified")
+
+
+class SignWaiverForm(FlaskForm):
+    signer_name = StringField("Full name", validators=[DataRequired(), Length(max=200)])
+    signer_title = StringField("Title", validators=[Optional(), Length(max=200)])
+    signer_email = StringField("Email", validators=[DataRequired(), Email(), Length(max=254)])
+    typed_signature = StringField(
+        "Type your name to sign",
+        validators=[DataRequired(), Length(max=200)],
+        description="Typing your name here is your signature (ESIGN/UETA).",
+    )
+    intent = BooleanField(
+        "I intend this to be my electronic signature, and I have reviewed the document above.",
+        validators=[DataRequired()],
+    )
+    submit = SubmitField("Sign")
+
+
+# ── Compliance ──────────────────────────────────────────────────────────────
+
+
+class ComplianceRequirementForm(FlaskForm):
+    kind = SelectField("Document", validators=[DataRequired()], validate_choice=False)
+    blocks_payment = BooleanField("Missing or expired document blocks payment")
+    submit = SubmitField("Add requirement")
+
+
+class ComplianceDocumentForm(FlaskForm):
+    kind = SelectField("Document", validators=[DataRequired()], validate_choice=False)
+    reference = StringField("Reference", validators=[Optional(), Length(max=200)])
+    issued_on = DateField("Issued", validators=[Optional()])
+    expires_on = DateField("Expires", validators=[Optional()])
+    submit = SubmitField("File the document")
+
+
+# ── Subcontracts ────────────────────────────────────────────────────────────
+
+
+class SubcontractForm(FlaskForm):
+    number = StringField("Number", validators=[DataRequired(), Length(max=64)])
+    vendor_name = StringField("Subcontractor", validators=[DataRequired(), Length(max=200)])
+    vendor_email = StringField("Email", validators=[Optional(), Email(), Length(max=254)])
+    amount = MoneyField("Contract amount", required=True)
+    retainage_bp = BasisPointField(
+        "Retainage %",
+        description="Left blank, the prime contract rate applies.",
+    )
+    scope = TextAreaField("Scope", validators=[Optional(), Length(max=4000)])
+    submit = SubmitField("Create the subcontract")
+
+
+class SubApplicationForm(FlaskForm):
+    amount = MoneyField("Amount this period", required=True)
+    period_end = DateField("Through", validators=[DataRequired()])
+    submit = SubmitField("Record the billing")
+
+
+class RejectForm(FlaskForm):
+    reason = StringField("Reason", validators=[DataRequired(), Length(max=500)])
+    submit = SubmitField("Reject")
+
+
+# ── API keys and webhooks ───────────────────────────────────────────────────
+
+
+class ApiKeyForm(FlaskForm):
+    name = StringField(
+        "What is this key for?",
+        validators=[DataRequired(), Length(max=120)],
+        description="Named so it can be recognised later, and revoked without guessing.",
+    )
+    scopes = SelectMultipleField("Scopes", validators=[Optional()], validate_choice=False)
+    submit = SubmitField("Mint the key")
+
+
+class WebhookForm(FlaskForm):
+    url = StringField("Endpoint URL", validators=[DataRequired(), Length(max=500)])
+    description = StringField("Description", validators=[Optional(), Length(max=200)])
+    secret = StringField(
+        "Signing secret",
+        validators=[DataRequired(), Length(min=16, max=200)],
+        description="Signs every delivery. Store it on your receiving end.",
+    )
+    events = SelectMultipleField("Events", validators=[Optional()], validate_choice=False)
+    submit = SubmitField("Add the subscription")
+
+
 __all__ = [
     "US_STATES",
+    "ApiKeyForm",
+    "ApproveChangeOrderForm",
     "BasisPointField",
+    "CertifyForm",
+    "ChangeOrderForm",
+    "ChangeOrderLineForm",
     "ChangeRoleForm",
+    "ComplianceDocumentForm",
+    "ComplianceRequirementForm",
     "ConfirmForm",
     "ContractForm",
     "EnrolMfaForm",
     "InviteMemberForm",
     "MfaForm",
     "MoneyField",
+    "OpenPeriodForm",
+    "PaymentForm",
+    "PeriodLineForm",
     "ProjectForm",
     "RegisterForm",
+    "RejectForm",
     "SignInForm",
+    "SignWaiverForm",
     "SovLineForm",
+    "StoredMaterialForm",
+    "SubApplicationForm",
+    "SubcontractForm",
+    "VerifyTemplateForm",
+    "VoidForm",
+    "WaiverRequestForm",
+    "WebhookForm",
     "cents",
 ]

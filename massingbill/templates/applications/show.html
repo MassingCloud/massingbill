@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Application #{{ application.number }} — {{ project.number }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  <a href="{{ url_for('applications.index', project_id=project.id) }}">Applications</a> /
+  #{{ application.number }}
+</nav>
+
+<div class="page-head">
+  <div>
+    <h1>Application #{{ application.number }}</h1>
+    <p class="lede">
+      {{ application.period_start }} to {{ application.period_end }}
+      &middot; <span class="pill pill-{{ application.status }}">{{ application.status }}</span>
+    </p>
+  </div>
+  <div class="downloads">
+    {% for fmt in ("pdf", "xlsx", "csv", "json") %}
+      <a href="{{ url_for('documents.download', project_id=project.id, application_id=application.id, fmt=fmt) }}">{{ fmt }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{# ── The reconciliation, first. It is the reason to look at this page. ───── #}
+<section class="panel panel-{{ 'ok' if report.ok else 'bad' }}">
+  <h2>Reconciliation</h2>
+  <p class="summary">{{ report.summary() }}</p>
+  {% if report.findings %}
+  <ul class="findings">
+    {% for f in report.findings %}
+    <li class="finding finding-{{ f.severity }}">
+      <span class="rule">{{ f.rule_id }}</span>
+      {{ f.message }}
+      {% if f.citation %}<span class="citation">{{ f.citation }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+{# ── G702 header. Every line derived; none of it typed. ──────────────────── #}
+<section class="panel">
+  <h2>Summary</h2>
+  <table class="grid header-lines">
+    <tbody>
+      <tr><th>1. Original contract sum</th><td class="num">{{ application.line1_original_sum | money }}</td></tr>
+      <tr><th>2. Net change by change orders</th><td class="num">{{ application.line2_net_co | money_paren }}</td></tr>
+      <tr class="rule-above"><th>3. Contract sum to date</th><td class="num">{{ application.line3_contract_sum_to_date | money }}</td></tr>
+      <tr><th>4. Total completed and stored to date</th><td class="num">{{ application.line4_completed_stored | money }}</td></tr>
+      <tr><th>5a. Retainage on completed work</th><td class="num">{{ application.line5a_retainage_work | money }}</td></tr>
+      <tr><th>5b. Retainage on stored material</th><td class="num">{{ application.line5b_retainage_stored | money }}</td></tr>
+      <tr><th>5. Total retainage</th><td class="num">{{ application.line5_total_retainage | money }}</td></tr>
+      <tr class="rule-above"><th>6. Total earned less retainage</th><td class="num">{{ application.line6_earned_less_retainage | money }}</td></tr>
+      <tr><th>7. Less previous certificates for payment</th><td class="num">{{ application.line7_previous_certificates | money }}</td></tr>
+      <tr class="rule-above total"><th>8. Current payment due</th><td class="num">{{ application.line8_current_payment_due | money }}</td></tr>
+      <tr><th>9. Balance to finish, plus retainage</th><td class="num">{{ application.line9_balance_to_finish | money }}</td></tr>
+    </tbody>
+  </table>
+</section>
+
+{# ── G703 continuation. The only editable thing on the page. ─────────────── #}
+<section class="panel">
+  <h2>Continuation sheet</h2>
+  <form method="post" action="{{ url_for('applications.enter', project_id=project.id, application_id=application.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <table class="grid sheet">
+      <thead>
+        <tr>
+          <th>A</th><th>B</th>
+          <th class="num">C<br><small>Scheduled value</small></th>
+          <th class="num">D<br><small>Previous</small></th>
+          <th class="num">E<br><small>This period</small></th>
+          <th class="num">F<br><small>Stored</small></th>
+          <th class="num">G<br><small>Completed &amp; stored</small></th>
+          <th class="num">%</th>
+          <th class="num">H<br><small>Balance</small></th>
+          <th class="num">I<br><small>Retainage</small></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in application.lines %}
+        {% set lf = line_forms[line.id] %}
+        <tr>
+          <td>{{ line.item_no }}</td>
+          <td>{{ line.description }}</td>
+          <td class="num">{{ line.col_c_scheduled_value | money }}</td>
+          <td class="num">{{ line.col_d_previous | money }}</td>
+          <td class="num entry">
+            {% if application.is_editable and can_write %}
+              {{ lf.this_period(class="input input-money") }}
+              {% for e in lf.this_period.errors %}<p class="error">{{ e }}</p>{% endfor %}
+            {% else %}{{ line.col_e_this_period | money }}{% endif %}
+          </td>
+          <td class="num entry">
+            {% if application.is_editable and can_write %}
+              {{ lf.stored(class="input input-money") }}
+              {% for e in lf.stored.errors %}<p class="error">{{ e }}</p>{% endfor %}
+            {% else %}{{ line.col_f_stored | money }}{% endif %}
+          </td>
+          <td class="num">{{ line.col_g_completed_stored | money }}</td>
+          <td class="num">{{ line.percent_complete_bp | pct }}</td>
+          <td class="num">{{ line.col_h_balance | money }}</td>
+          <td class="num">{{ line.col_i_retainage | money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="total">
+          <th colspan="2">Totals</th>
+          <td class="num">{{ application.line3_contract_sum_to_date | money }}</td>
+          <td class="num"></td><td class="num"></td><td class="num"></td>
+          <td class="num">{{ application.line4_completed_stored | money }}</td>
+          <td class="num"></td><td class="num"></td>
+          <td class="num">{{ application.line5_total_retainage | money }}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    {% if application.is_editable and can_write %}
+    <div class="actions">
+      <button type="submit" class="button">Save the period</button>
+      <a class="button button-quiet"
+         href="{{ url_for('applications.materials', project_id=project.id, application_id=application.id) }}">
+        Stored materials
+      </a>
+    </div>
+    {% endif %}
+  </form>
+</section>
+
+{# ── Compliance and waivers: why a period gets held up. ──────────────────── #}
+{% if compliance %}
+<section class="panel">
+  <h2>Compliance</h2>
+  <ul class="states">
+    {% for state in compliance %}
+    <li class="state state-{{ 'ok' if state.satisfied else ('blocking' if state.blocks else 'warn') }}">
+      {{ state.requirement.kind.label }} &mdash;
+      {% if state.satisfied %}
+        on file{% if state.expiring_soon %}, expires in {{ state.expires_in_days }} days{% endif %}
+      {% else %}{{ state.reason }}{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if waivers %}
+<section class="panel">
+  <h2>Lien waivers</h2>
+  <table class="grid">
+    <thead><tr><th>Claimant</th><th>Type</th><th class="num">Amount</th><th>Through</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for w in waivers %}
+      <tr>
+        <td>{{ w.claimant_name }}</td>
+        <td>{{ w.waiver_type }}</td>
+        <td class="num">{{ w.amount_cents | money }}</td>
+        <td>{{ w.through_date }}</td>
+        <td>{{ w.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{# ── Actions, gated by both status and permission. ───────────────────────── #}
+<section class="panel">
+  <h2>What happens next</h2>
+
+  {% if application.is_editable %}
+    {% if can_submit %}
+    <form method="post" action="{{ url_for('applications.submit', project_id=project.id, application_id=application.id) }}" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="button" {% if not report.ok %}disabled title="This application does not tie out."{% endif %}>
+        Submit to the owner
+      </button>
+    </form>
+    {% if not report.ok %}
+    <p class="hint">Submission is blocked until every error above is cleared.</p>
+    {% endif %}
+    {% else %}
+    <p class="hint">Your role prepares the application; someone with submit authority sends it.</p>
+    {% endif %}
+
+  {% elif application.status == "submitted" and can_certify %}
+    <form method="post" action="{{ url_for('applications.certify', project_id=project.id, application_id=application.id) }}">
+      {{ certify_form.csrf_token }}
+      <div class="row">
+        {{ m.field(certify_form.amount_certified) }}
+        {{ m.field(certify_form.certified_by_label) }}
+      </div>
+      {{ m.field(certify_form.reason) }}
+      {{ certify_form.submit(class="button") }}
+    </form>
+
+  {% elif application.certification %}
+    <p>
+      Certified {{ application.certified_payment_cents | money }} by
+      {{ application.certification.certified_by_label }}
+      {% if application.certification.variance_cents %}
+        &mdash; <strong>{{ application.certification.variance_cents | money_paren }}</strong>
+        against the amount applied for.
+        {% if application.certification.reason %}<br>{{ application.certification.reason }}{% endif %}
+      {% endif %}
+    </p>
+  {% endif %}
+
+  {% if can_see_payments and application.is_issued %}
+  <h3>Payment</h3>
+  <p>
+    Received {{ payments_total | money }} of {{ application.certified_payment_cents | money }} certified.
+    {% if payment_variance %}Outstanding: {{ payment_variance | money_paren }}.{% endif %}
+  </p>
+    {% if can_pay %}
+    <form method="post" action="{{ url_for('applications.pay', project_id=project.id, application_id=application.id) }}">
+      {{ payment_form.csrf_token }}
+      <div class="row">
+        {{ m.field(payment_form.amount) }}
+        {{ m.field(payment_form.received_on) }}
+        {{ m.field(payment_form.method) }}
+        {{ m.field(payment_form.reference) }}
+      </div>
+      {{ payment_form.submit(class="button") }}
+    </form>
+    {% endif %}
+  {% endif %}
+
+  {% if can_write and application.status != "paid" and application.status != "void" %}
+  <details class="danger">
+    <summary>Void this application</summary>
+    <p class="hint">Financial records are never deleted. A void is a state, and it stays in the log.</p>
+    <form method="post" action="{{ url_for('applications.void', project_id=project.id, application_id=application.id) }}">
+      {{ void_form.csrf_token }}
+      {{ m.field(void_form.reason) }}
+      {{ void_form.submit(class="button button-danger") }}
+    </form>
+  </details>
+  {% endif %}
+</section>
+{% endblock %}

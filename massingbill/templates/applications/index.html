@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Applications — {{ project.number }}{% endblock %}
+
+{% block content %}
+<nav class="crumbs">
+  <a href="{{ url_for('projects.index') }}">Projects</a> /
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.number }}</a> /
+  Applications
+</nav>
+
+<h1>Applications for payment</h1>
+<p class="lede">{{ project.name }}</p>
+
+<dl class="facts">
+  <dt>Original contract sum</dt><dd>{{ contract.original_contract_sum_cents | money }}</dd>
+  <dt>Contract sum to date</dt><dd>{{ totals.contract_sum_cents | money }}</dd>
+  <dt>Issued applications</dt><dd>{{ totals.applications }}</dd>
+  <dt>Earned less retainage</dt><dd>{{ totals.latest_line6_cents | money }}</dd>
+  <dt>Requested to date</dt><dd>{{ totals.sum_line8_cents | money }}</dd>
+</dl>
+
+{% if applications %}
+<table class="grid">
+  <thead>
+    <tr>
+      <th class="num">No.</th>
+      <th>Period</th>
+      <th>Status</th>
+      <th class="num">Completed &amp; stored</th>
+      <th class="num">Payment due</th>
+      <th class="num">Certified</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in applications %}
+    <tr>
+      <td class="num">{{ a.number }}</td>
+      <td>{{ a.period_start }} to {{ a.period_end }}</td>
+      <td><span class="pill pill-{{ a.status }}">{{ a.status }}</span></td>
+      <td class="num">{{ a.line4_completed_stored | money }}</td>
+      <td class="num">{{ a.line8_current_payment_due | money }}</td>
+      <td class="num">
+        {% if a.certification %}{{ a.certified_payment_cents | money }}{% else %}&mdash;{% endif %}
+      </td>
+      <td>
+        <a href="{{ url_for('applications.show', project_id=project.id, application_id=a.id) }}">Open</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No applications yet.</p>
+{% endif %}
+
+{% if can_write %}
+  {% if open_application %}
+  <p class="note">
+    Application #{{ open_application.number }} is still open. A contract has one
+    live period at a time, so finish or void it before starting the next.
+  </p>
+  {% else %}
+  <section class="panel">
+    <h2>Open the next period</h2>
+    <form method="post" action="{{ url_for('applications.open_period', project_id=project.id) }}">
+      {{ form.csrf_token }}
+      <div class="row">
+        {{ m.field(form.period_start) }}
+        {{ m.field(form.period_end) }}
+        {{ m.field(form.application_date) }}
+      </div>
+      {{ form.submit(class="button") }}
+    </form>
+  </section>
+  {% endif %}
+{% endif %}
+{% endblock %}

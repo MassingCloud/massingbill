@@ -30,6 +30,17 @@
       <p class="error">Out of balance by {{ reconciliation.difference_cents | money }} against the contract sum.</p>
     {% endif %}
     <a class="button" href="{{ url_for('sov.show', project_id=project.id) }}">Open schedule</a>
+
+    {% if schedule.status == "approved" %}
+      <h2>Applications for payment</h2>
+      <p class="lede">The monthly requisition, and the reconciliation that says whether it ties.</p>
+      <a class="button" href="{{ url_for('applications.index', project_id=project.id) }}">Open applications</a>
+    {% else %}
+      <p class="note">
+        The schedule of values has to be approved before a period can be opened
+        &mdash; every G703 line on every future application descends from it.
+      </p>
+    {% endif %}
   {% else %}
     <p class="lede">No schedule of values yet.</p>
     <a class="button" href="{{ url_for('sov.show', project_id=project.id) }}">Start one</a>

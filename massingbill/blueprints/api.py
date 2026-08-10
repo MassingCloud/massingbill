@@ -23,6 +23,7 @@ from massingbill.errors import AuthenticationError, NotFoundError, ValidationErr
 from massingbill.extensions import csrf, db, limiter
 from massingbill.models import (
     Application,
+    ApplicationLine,
     ChangeOrder,
     PrimeContract,
     Project,
@@ -217,7 +218,7 @@ def _application(application: Application, *, lines: bool = False) -> dict[str, 
     return payload
 
 
-def _application_line(line: Any) -> dict[str, Any]:
+def _application_line(line: ApplicationLine) -> dict[str, Any]:
     """G703 columns A-I, under the names the continuation sheet uses."""
     return {
         "item_no": line.item_no,
@@ -227,7 +228,7 @@ def _application_line(line: Any) -> dict[str, Any]:
         "col_e_this_period": money(line.col_e_this_period),
         "col_f_stored": money(line.col_f_stored),
         "col_g_completed_stored": money(line.col_g_completed_stored),
-        "col_h_balance_to_finish": money(line.col_h_balance_to_finish),
+        "col_h_balance_to_finish": money(line.col_h_balance),
         "col_i_retainage": money(line.col_i_retainage),
     }
 

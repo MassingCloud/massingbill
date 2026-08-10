@@ -272,3 +272,74 @@ textarea.input { min-height: 4.5rem; resize: vertical; }
   border-radius: 8px;
   padding: 0.5rem;
 }
+
+/* ── The requisition worksheet (P6) ──────────────────────────────────────── */
+
+.crumbs { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem; }
+.crumbs a { color: var(--muted); }
+
+.page-head { align-items: flex-start; display: flex; gap: 1rem; justify-content: space-between; }
+.downloads a { margin-left: 0.6rem; text-transform: uppercase; font-size: 0.78rem; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+}
+.panel h2 { font-size: 0.85rem; letter-spacing: 0.05em; margin: 0 0 0.75rem; text-transform: uppercase; }
+
+/* The reconciliation panel earns colour; nothing else on the page does. */
+.panel-ok { border-left: 4px solid #1a7f37; }
+.panel-bad { border-left: 4px solid #a4262c; }
+.summary { font-weight: 600; margin: 0 0 0.5rem; }
+
+.findings { list-style: none; margin: 0; padding: 0; }
+.finding { border-top: 1px solid var(--line); font-size: 0.9rem; padding: 0.4rem 0; }
+.finding .rule { font-family: ui-monospace, monospace; font-size: 0.8rem; margin-right: 0.5rem; opacity: 0.75; }
+.finding .citation { color: var(--muted); display: block; font-size: 0.78rem; }
+.finding-error .rule { color: #a4262c; }
+.finding-warning .rule { color: #9a6700; }
+.finding-info .rule { color: var(--muted); }
+
+/* Header lines read as a form, not as data: label left, amount right. */
+.header-lines th { font-weight: 400; text-align: left; }
+.header-lines .rule-above th, .header-lines .rule-above td { border-top: 2px solid var(--line); }
+.header-lines .total th, .header-lines .total td { font-weight: 700; }
+
+.sheet .entry { min-width: 8rem; }
+.sheet .input-money { text-align: right; width: 100%; }
+.sheet .error { color: #a4262c; font-size: 0.75rem; margin: 0.2rem 0 0; }
+
+.pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.5rem;
+  text-transform: uppercase;
+}
+.pill-draft { color: var(--muted); }
+.pill-submitted { color: #9a6700; }
+.pill-certified { color: #1f6feb; }
+.pill-paid { color: #1a7f37; }
+.pill-void { color: #a4262c; text-decoration: line-through; }
+
+.states { list-style: none; margin: 0; padding: 0; }
+.state { border-top: 1px solid var(--line); font-size: 0.9rem; padding: 0.35rem 0; }
+.state-ok::before { content: "✓ "; color: #1a7f37; }
+.state-warn::before { content: "! "; color: #9a6700; }
+.state-blocking::before { content: "✕ "; color: #a4262c; }
+
+.row { display: flex; flex-wrap: wrap; gap: 1rem; }
+.row .field { flex: 1 1 12rem; }
+
+.empty { color: var(--muted); font-style: italic; }
+.warn { color: #9a6700; font-size: 0.78rem; }
+
+.button-quiet { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+.button-danger { background: #a4262c; }
+.button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+details.danger { margin-top: 1.5rem; }
+details.danger summary { color: #a4262c; cursor: pointer; font-size: 0.85rem; }
