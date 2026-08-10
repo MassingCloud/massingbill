@@ -111,7 +111,15 @@ def test_the_secret_is_never_stored(tenant: Tenant) -> None:
     minted = apikeys.mint(tenant.organization, name="k")
     db.session.commit()
 
-    secret = minted.token.split("_")[-1]
+    # Through ``parse``, not ``split("_")[-1]``. The secret's own alphabet
+    # contains the delimiter, so an unbounded split yields a *fragment* of it --
+    # often a single character, which then "appears" in any row you compare it
+    # against. That is the same mistake this module's parser was fixed for, and
+    # it made this test fail roughly at the RNG's discretion.
+    parsed = apikeys.parse(minted.token)
+    assert parsed is not None
+    _, secret = parsed
+
     stored = db.session.get(ApiKey, minted.key.id)
     assert stored is not None
     assert secret not in stored.secret_hash
