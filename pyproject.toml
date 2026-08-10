@@ -105,6 +105,10 @@ massingbill = ["templates/**/*", "static/**/*", "data/**/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+# The SDK ships beside the app rather than inside it (it is a client, and a
+# self-hoster should not have to install it). Putting it on the path here is
+# what lets the suite prove the client and the server agree.
+pythonpath = ["sdk/python"]
 markers = [
     "pdf: tests that require the WeasyPrint native stack (GTK/Pango/cairo)",
     "adapter: tests that exercise an optional adapter (SPEC.md 3.2)",
@@ -146,6 +150,12 @@ ignore = [
 # caught a real bug here, a non-breaking space hidden in a thousands-separator
 # list that made perfectly ordinary pasted amounts unparseable.
 "massingbill/services/renderers/*" = ["RUF001", "RUF002", "RUF003"]
+
+# The demo seeds a throwaway sign-in whose whole purpose is to be published, and
+# the site builder hands a one-shot key to an in-memory database it deletes on
+# the way out. Both are literally named after not being secrets.
+"massingbill/services/demo.py" = ["S105", "S106"]
+"scripts/build_demo_site.py" = ["S106"]
 
 [tool.mypy]
 python_version = "3.11"

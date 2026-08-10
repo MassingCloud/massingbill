@@ -17,6 +17,9 @@ coverage.xml
 htmlcov/
 sbom.json
 
+# Built by scripts/build_demo_site.py; published by the pages workflow.
+/site/
+
 # Runtime data -- never commit a customer's billing records
 instance/
 *.sqlite3

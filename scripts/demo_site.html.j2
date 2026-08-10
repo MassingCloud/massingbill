@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Massing Bill — worked demo</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0 auto; max-width: 62rem; padding: 3rem 1.5rem 5rem;
+  }
+  h1 { font-size: 2rem; letter-spacing: -.02em; margin: 0 0 .5rem; }
+  h2 { font-size: 1rem; letter-spacing: .04em; margin: 3rem 0 .75rem;
+       opacity: .7; text-transform: uppercase; }
+  .lede { font-size: 1.1rem; opacity: .8; }
+  table { border-collapse: collapse; font-size: .93rem; margin: 1rem 0; width: 100%; }
+  th, td { border-bottom: 1px solid rgba(128,128,128,.3); padding: .5rem .6rem;
+           text-align: left; vertical-align: top; }
+  thead th { font-size: .75rem; letter-spacing: .04em; opacity: .7; text-transform: uppercase; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  th.num { text-align: right; }
+  .ok { color: #1a7f37; }
+  .bad { color: #a4262c; }
+  .links a { margin-right: .5rem; }
+  .facts { display: grid; gap: .3rem 1.5rem; grid-template-columns: max-content 1fr;
+           margin: 1.5rem 0; }
+  .facts dt { opacity: .65; }
+  .facts dd { margin: 0; }
+  .note { background: rgba(128,128,128,.09); border-left: 3px solid rgba(128,128,128,.5);
+          font-size: .9rem; padding: .8rem 1rem; }
+  .disclaimer { border-top: 1px solid rgba(128,128,128,.3); font-size: .8rem;
+                margin-top: 3rem; opacity: .7; padding-top: 1rem; }
+  code { background: rgba(128,128,128,.15); border-radius: 4px;
+         font-size: .9em; padding: .1em .35em; }
+</style>
+</head>
+<body>
+
+<h1>Massing Bill — worked demo</h1>
+<p class="lede">
+  Six months of billing on a {{ contract_sum }} medical office building, produced
+  by the real engine. Every figure below came out of the same code a self-hoster
+  runs; none of it is mocked up.
+</p>
+
+<dl class="facts">
+  <dt>Project</dt>
+  <dd>{{ project_number }} — {{ project_name }}</dd>
+  <dt>Jurisdiction</dt>
+  <dd>California — retention capped at 5% on private works (SB 61, eff. 2026-01-01)</dd>
+  <dt>Contract sum</dt>
+  <dd>{{ contract_sum }} on 12 lines across 9 CSI divisions</dd>
+  <dt>Built</dt>
+  <dd>{{ built_on }}</dd>
+</dl>
+
+<h2>What the six periods demonstrate</h2>
+<ul>
+  <li><strong>1&ndash;2</strong> &mdash; first billing and steady progress.</li>
+  <li><strong>3</strong> &mdash; a change order adds a new schedule line mid-stream.</li>
+  <li><strong>4</strong> &mdash; bonded off-site curtain wall appears in column F.</li>
+  <li><strong>5</strong> &mdash; it installs: column F empties into column E, billed
+      once, not twice.</li>
+  <li><strong>6</strong> &mdash; a deductive change order, and the architect certifies
+      $18,000 less than was applied for. The next period&rsquo;s line 7 follows the
+      certificate, not the request.</li>
+</ul>
+
+<h2>Applications</h2>
+<table>
+  <thead>
+    <tr>
+      <th class="num">No.</th>
+      <th>Period</th>
+      <th>Status</th>
+      <th class="num">Completed &amp; stored</th>
+      <th class="num">Certified</th>
+      <th>Reconciliation</th>
+      <th>Documents</th>
+    </tr>
+  </thead>
+  <tbody>
+  {%- for page in pages %}
+    <tr>
+      <td class="num">{{ page.number }}</td>
+      <td>{{ page.period }}</td>
+      <td>{{ page.status }}</td>
+      <td class="num">{{ page.completed }}</td>
+      <td class="num">{{ page.certified }}</td>
+      <td class="{{ 'ok' if page.tieout_ok else 'bad' }}">{{ page.tieout }}</td>
+      <td class="links">
+        <a href="{{ page.files.html }}">view</a>
+        {%- for label, path in page.downloads %}
+        <a href="{{ path }}">{{ label }}</a>
+        {%- endfor %}
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+
+<p class="note">
+  Every period carries one warning: the subcontractor&rsquo;s Form W-9 is not on
+  file. That is on purpose. A warning is a thing the project manager should know
+  and can still bill through; an <em>error</em> blocks submission outright. A
+  demo where everything is clean would not show you the difference.
+</p>
+
+{% if not pdf_available %}
+<p class="note">
+  PDF output is absent from this build: the native WeasyPrint stack was not
+  installed on the machine that produced it.
+</p>
+{% endif %}
+
+<h2>The reconciliation page</h2>
+<p>
+  Every rendered application carries one. It is the thing no competitor ships:
+  each of the G702 lines and G703 columns checked against the contract, the
+  schedule of values and the preceding period, with the failures named
+  <em>before</em> the owner sees them. Open any application above and scroll to
+  the last page.
+</p>
+
+<h2>The spreadsheet is the honest one</h2>
+<p>
+  Download an <code>.xlsx</code> above and click a cell in column G. It is
+  <code>=E6+F6+G6</code>, not a number. The cover sheet references the
+  continuation sheet&rsquo;s totals rather than restating them. A spreadsheet of
+  frozen figures asks to be trusted; one of formulas can be checked.
+</p>
+
+<h2>Lien waivers</h2>
+<p>
+  Twelve states prescribe the exact wording of a lien waiver, and a form that
+  does not substantially conform can be unenforceable. This build ships
+  <strong>{{ unverified }} statutory templates with empty bodies</strong>, and the
+  renderer refuses them by name and citation until someone reads the statute and
+  enters the verbatim text. Inventing plausible statutory language would release
+  lien rights nobody would discover were gone until the money was.
+</p>
+{% if waiver_refusal %}
+<p class="note">{{ waiver_refusal }}</p>
+{% endif %}
+
+<p><a href="https://github.com/MassingCloud/massingbill">Source, and how to run it
+yourself &rarr;</a></p>
+
+<p class="disclaimer">
+  Prepared with Massing Bill. Format follows the AIA G702/G703 line structure.
+  Massing Bill is not affiliated with, endorsed by, or sponsored by The American
+  Institute of Architects. AIA&reg;, G702&reg; and G703&reg; are registered
+  trademarks of the AIA. The parties, amounts and dates on these pages are
+  fictitious.
+</p>
+
+</body>
+</html>
