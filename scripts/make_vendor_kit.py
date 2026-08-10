@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 CORE = ROOT / "massingbill" / "core"
@@ -30,9 +31,14 @@ CORE = ROOT / "massingbill" / "core"
 DOCS = ["docs/vendorable-core.md", "LICENSE"]
 
 
+#: Resolved once, so the subprocess call names an absolute path rather than
+#: relying on whatever ``git`` is first on PATH at the moment it runs.
+GIT = shutil.which("git") or "git"
+
+
 def git(*args: str) -> str:
     return subprocess.run(  # noqa: S603 - our own literal arguments
-        ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True
+        [GIT, *args], cwd=ROOT, capture_output=True, text=True, check=True
     ).stdout.strip()
 
 
@@ -79,26 +85,29 @@ def build(output: Path) -> None:
         if source.exists():
             shutil.copy2(source, output / Path(name).name)
 
-    manifest = {
+    tests = sorted(name.rsplit("/", 1)[-1] for name in files if "/tests/test_mb_" in name)
+    version = _version()
+
+    manifest: dict[str, Any] = {
         "package": "massingbill",
         "component": "massingbill.core",
-        "version": _version(),
+        "version": version,
         "commit": commit,
         "repository": "https://github.com/MassingCloud/massingbill",
         "licence": "MIT",
         "runtime_dependencies": [],
         "python_requires": ">=3.11",
         "files": files,
-        "tests": sorted(
-            name.rsplit("/", 1)[-1] for name in files if "/tests/test_mb_" in name
-        ),
+        "tests": tests,
     }
     (output / "MANIFEST.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
 
     shutil.copy2(ROOT / "scripts" / "check_vendor_drift.py", output / "check_vendor_drift.py")
-    (output / "README.md").write_text(_readme(manifest), encoding="utf-8")
+    (output / "README.md").write_text(
+        _readme(commit=commit, version=version, tests=tests), encoding="utf-8"
+    )
 
     print(f"Vendor kit written to {output.resolve()}")
     print(f"  pinned to  {commit}")
@@ -114,13 +123,13 @@ def _version() -> str:
     return "unknown"
 
 
-def _readme(manifest: dict[str, object]) -> str:
-    tests = "\n".join(f"python massingbill/core/tests/{name}" for name in manifest["tests"])  # type: ignore[union-attr]
+def _readme(*, commit: str, version: str, tests: list[str]) -> str:
+    commands = "\n".join(f"python massingbill/core/tests/{name}" for name in tests)
     return f"""# massingbill.core — vendorable kit
 
-Pinned to `{manifest["commit"]}` (massingbill {manifest["version"]}), MIT.
+Pinned to `{commit}` (massingbill {version}), MIT.
 
-**Zero runtime dependencies.** Standard library only, Python {manifest["python_requires"]}.
+**Zero runtime dependencies.** Standard library only, Python >=3.11.
 
 ## Install
 
@@ -147,7 +156,7 @@ only, so they work in whatever harness you have. Filenames are `test_mb_`
 prefixed so a bare name will not collide with yours.
 
 ```
-{tests}
+{commands}
 ```
 
 Each finds the core by searching upward for `massingbill/core/`, so it works
