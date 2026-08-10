@@ -14,6 +14,7 @@ leaks the existence of another contractor's project.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import wraps
 from typing import Any, TypeVar
 
@@ -41,40 +42,80 @@ SOV_WRITE = "sov:write"
 SOV_APPROVE = "sov:approve"
 AUDIT_READ = "audit:read"
 
-ALL_PERMISSIONS = frozenset(
+APPLICATION_READ = "application:read"
+APPLICATION_WRITE = "application:write"
+#: Submitting freezes the application and sends it to the owner. Separate from
+#: writing it, so the person who enters the numbers need not be the person who
+#: commits to them -- the same separation the accountant/approve split makes.
+APPLICATION_SUBMIT = "application:submit"
+#: Recording what the architect certified. An act of data entry about an
+#: outside party's decision, not the decision itself.
+APPLICATION_CERTIFY = "application:certify"
+
+CHANGE_ORDER_WRITE = "change_order:write"
+CHANGE_ORDER_APPROVE = "change_order:approve"
+
+WAIVER_READ = "waiver:read"
+WAIVER_WRITE = "waiver:write"
+COMPLIANCE_READ = "compliance:read"
+COMPLIANCE_WRITE = "compliance:write"
+SUBCONTRACT_READ = "subcontract:read"
+SUBCONTRACT_WRITE = "subcontract:write"
+PAYMENT_READ = "payment:read"
+PAYMENT_WRITE = "payment:write"
+
+#: API keys and webhook subscriptions. Deliberately not folded into
+#: ``org:manage``: minting a key that can read every application is a different
+#: act from adding a teammate, and should be grantable separately.
+API_MANAGE = "api:manage"
+
+READ_PERMISSIONS = frozenset(
     {
-        ORG_MANAGE,
         ORG_READ,
-        PROJECT_CREATE,
         PROJECT_READ,
-        PROJECT_UPDATE,
-        PROJECT_DELETE,
         SOV_READ,
-        SOV_WRITE,
-        SOV_APPROVE,
         AUDIT_READ,
+        APPLICATION_READ,
+        WAIVER_READ,
+        COMPLIANCE_READ,
+        SUBCONTRACT_READ,
+        PAYMENT_READ,
     }
 )
+
+#: Every permission that changes something. Enumerated rather than inferred
+#: from the name: ``application:submit`` and ``api:manage`` mutate as surely as
+#: anything ending in ``:write``, and a suffix heuristic would wave them past a
+#: read-only role without anyone noticing.
+WRITE_PERMISSIONS = frozenset(
+    {
+        ORG_MANAGE,
+        PROJECT_CREATE,
+        PROJECT_UPDATE,
+        PROJECT_DELETE,
+        SOV_WRITE,
+        SOV_APPROVE,
+        APPLICATION_WRITE,
+        APPLICATION_SUBMIT,
+        APPLICATION_CERTIFY,
+        CHANGE_ORDER_WRITE,
+        CHANGE_ORDER_APPROVE,
+        WAIVER_WRITE,
+        COMPLIANCE_WRITE,
+        SUBCONTRACT_WRITE,
+        PAYMENT_WRITE,
+        API_MANAGE,
+    }
+)
+
+ALL_PERMISSIONS = READ_PERMISSIONS | WRITE_PERMISSIONS
 
 #: What each role may do. Written out in full rather than by inheritance so a
 #: reader can see a role's entire authority without tracing a hierarchy -- and
 #: so widening one role never silently widens another.
 ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
     Role.OWNER: ALL_PERMISSIONS,
-    Role.ADMIN: frozenset(
-        {
-            ORG_MANAGE,
-            ORG_READ,
-            PROJECT_CREATE,
-            PROJECT_READ,
-            PROJECT_UPDATE,
-            PROJECT_DELETE,
-            SOV_READ,
-            SOV_WRITE,
-            SOV_APPROVE,
-            AUDIT_READ,
-        }
-    ),
+    Role.ADMIN: ALL_PERMISSIONS,
     Role.PM: frozenset(
         {
             ORG_READ,
@@ -84,15 +125,45 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
             SOV_READ,
             SOV_WRITE,
             SOV_APPROVE,
+            APPLICATION_READ,
+            APPLICATION_WRITE,
+            APPLICATION_SUBMIT,
+            CHANGE_ORDER_WRITE,
+            CHANGE_ORDER_APPROVE,
+            WAIVER_READ,
+            WAIVER_WRITE,
+            COMPLIANCE_READ,
+            COMPLIANCE_WRITE,
+            SUBCONTRACT_READ,
+            SUBCONTRACT_WRITE,
+            PAYMENT_READ,
         }
     ),
     # An accountant builds and edits the schedule of values but does not approve
     # it: the person who writes the numbers should not be the only person who
-    # blesses them.
-    Role.ACCOUNTANT: frozenset({ORG_READ, PROJECT_READ, SOV_READ, SOV_WRITE}),
-    Role.VIEWER: frozenset({ORG_READ, PROJECT_READ, SOV_READ}),
-    # Counterparties. They reach documents through scoped links, not the app.
-    Role.EXTERNAL_APPROVER: frozenset({PROJECT_READ, SOV_READ}),
+    # blesses them. The same line runs through the application -- they prepare
+    # it and record the money, but the PM is the one who submits it.
+    Role.ACCOUNTANT: frozenset(
+        {
+            ORG_READ,
+            PROJECT_READ,
+            SOV_READ,
+            SOV_WRITE,
+            APPLICATION_READ,
+            APPLICATION_WRITE,
+            APPLICATION_CERTIFY,
+            WAIVER_READ,
+            WAIVER_WRITE,
+            COMPLIANCE_READ,
+            SUBCONTRACT_READ,
+            PAYMENT_READ,
+            PAYMENT_WRITE,
+        }
+    ),
+    Role.VIEWER: READ_PERMISSIONS - {AUDIT_READ},
+    # Counterparties. They reach documents through scoped links, not the app,
+    # and they see the application rather than the organization around it.
+    Role.EXTERNAL_APPROVER: frozenset({PROJECT_READ, SOV_READ, APPLICATION_READ}),
     Role.SUB_CONTACT: frozenset(),
 }
 
@@ -127,6 +198,9 @@ def register_request_hooks(app: Any) -> None:
     @app.before_request
     def _reset_membership_cache() -> None:
         g.pop("active_membership", None)
+        # Same reasoning, and more urgent: a principal left on ``g`` would let
+        # one request's API key authorize the next one.
+        g.pop("api_principal", None)
 
 
 def active_membership() -> Membership | None:
@@ -156,12 +230,50 @@ def active_membership() -> Membership | None:
     return membership
 
 
+# ── API principals ──────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ApiPrincipal:
+    """An authenticated API key, standing in for a member for one request.
+
+    Deliberately fed through the *same* ``active_organization_id`` /
+    ``has_permission`` path as a signed-in member, so ``scoped()`` and
+    ``get_scoped_or_404()`` enforce tenant isolation for API traffic without a
+    second implementation. A parallel set of scoping helpers for the API is how
+    cross-tenant leaks get written: one of the two copies is always behind.
+    """
+
+    organization_id: str
+    scopes: frozenset[str]
+    key_id: str
+
+
+def set_api_principal(principal: ApiPrincipal) -> None:
+    g.api_principal = principal
+
+
+def current_api_principal() -> ApiPrincipal | None:
+    principal: ApiPrincipal | None = g.get("api_principal")
+    return principal
+
+
 def active_organization() -> Organization | None:
+    principal = current_api_principal()
+    if principal is not None:
+        from massingbill.extensions import db
+
+        return db.session.get(Organization, principal.organization_id)
+
     membership = active_membership()
     return membership.organization if membership else None
 
 
 def active_organization_id() -> str | None:
+    principal = current_api_principal()
+    if principal is not None:
+        return principal.organization_id
+
     membership = active_membership()
     return membership.organization_id if membership else None
 
@@ -181,10 +293,19 @@ def require_organization_id() -> str:
 
 
 def has_permission(permission: str) -> bool:
+    principal = current_api_principal()
+    if principal is not None:
+        return permission in principal.scopes
+
     membership = active_membership()
     if membership is None:
         return False
     return permission in permissions_for(Role(membership.role))
+
+
+def has_principal() -> bool:
+    """Whether anything is authenticated at all -- a member or an API key."""
+    return current_api_principal() is not None or active_membership() is not None
 
 
 def require_permission(permission: str) -> Callable[[Callable[..., T]], Callable[..., T]]:
@@ -199,18 +320,25 @@ def require_permission(permission: str) -> Callable[[Callable[..., T]], Callable
     def decorator(view: Callable[..., T]) -> Callable[..., T]:
         @wraps(view)
         def wrapper(*args: Any, **kwargs: Any) -> T:
-            membership = active_membership()
-            if membership is None:
+            if not has_principal():
                 abort(401)
-            if permission not in permissions_for(Role(membership.role)):
-                raise ForbiddenError(
-                    f"Your role ({Role(membership.role).label}) cannot perform this action."
-                )
+            if not has_permission(permission):
+                raise ForbiddenError(_refusal(permission))
             return view(*args, **kwargs)
 
         return wrapper
 
     return decorator
+
+
+def _refusal(permission: str) -> str:
+    """Say why, in terms of the credential that was actually presented."""
+    if current_api_principal() is not None:
+        return f"This API key does not carry the {permission!r} scope."
+
+    membership = active_membership()
+    role = Role(membership.role).label if membership else "your role"
+    return f"Your role ({role}) cannot perform this action."
 
 
 # ── Tenant scoping ──────────────────────────────────────────────────────────

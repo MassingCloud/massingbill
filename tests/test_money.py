@@ -313,6 +313,15 @@ def test_to_decimal_is_exact() -> None:
     assert to_decimal(cents(-5)) == Decimal("-0.05")
 
 
+def test_to_decimal_always_shows_two_places() -> None:
+    """A whole-dollar amount must not render as ``325000`` in a column where
+    every other row shows cents. Plain division normalises the exponent away."""
+    assert str(to_decimal(cents(32_500_000))) == "325000.00"
+    assert str(to_decimal(cents(0))) == "0.00"
+    assert str(to_decimal(cents(100))) == "1.00"
+    assert str(to_decimal(cents(-4200))) == "-42.00"
+
+
 # ── Basis points ────────────────────────────────────────────────────────────
 
 

@@ -1,0 +1,14 @@
+{#
+  The house renderer.
+
+  Clean-sheet Massing Bill form for customers who want no resemblance to the
+  AIA documents at all. Same numbers, same checks, different livery.
+#}
+{% extends "documents/_base.html" %}
+{% from "documents/_body.html" import cover, continuation, reconciliation %}
+
+{% block content %}
+{{ cover(view, "Payment Application", "Massing Bill standard form") }}
+{{ continuation(view, "Schedule of Values — Progress Detail") }}
+{{ reconciliation(view) }}
+{% endblock %}

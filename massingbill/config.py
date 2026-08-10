@@ -61,6 +61,23 @@ class Settings(BaseSettings):
     s3_access_key_id: str = ""
     s3_secret_access_key: str = ""
 
+    # ── API and webhooks (SPEC.md 3.1) ──────────────────────────────────────
+    #: Per-key ceiling for API traffic, unless a key sets its own.
+    api_rate_limit_default: str = "600 per minute"
+    #: How many times a failing webhook is retried before it is abandoned, and
+    #: how many consecutive failures disable a subscription outright. Retrying
+    #: a dead endpoint forever is how a queue becomes an outage.
+    webhook_max_attempts: int = 6
+    webhook_disable_after_failures: int = 20
+    webhook_timeout_seconds: float = 10.0
+    #: Whether a webhook may target a private, loopback or link-local address.
+    #:
+    #: **True by default because self-hosting is the product** -- a contractor
+    #: running this next to their ERP on 10.0.0.0/8 is the normal case, not the
+    #: attack. A multi-tenant deployment, where one tenant could otherwise aim a
+    #: webhook at the cloud metadata endpoint, must set this to false.
+    webhook_allow_private_targets: bool = True
+
     # ── Web ─────────────────────────────────────────────────────────────────
     session_cookie_secure: bool = True
     rate_limit_default: str = "240 per hour"

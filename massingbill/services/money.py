@@ -327,8 +327,15 @@ def _decimal_to_cents(value: Decimal, *, allow_rounding: bool, original: object)
 
 
 def to_decimal(amount: Cents) -> Decimal:
-    """Exact decimal representation, for XLSX cells and JSON that needs a number."""
-    return Decimal(amount) / 100
+    """Exact decimal representation, for XLSX cells and JSON that needs a number.
+
+    Always two decimal places. Plain division normalises the exponent away, so
+    ``Decimal(32500000) / 100`` is ``Decimal('325000')`` -- numerically right,
+    but it renders as ``325000`` in a CSV column where every other row shows
+    cents, and a document whose amounts are formatted inconsistently invites
+    exactly the suspicion this product exists to remove.
+    """
+    return (Decimal(amount) / 100).quantize(Decimal("0.01"))
 
 
 def to_display(
