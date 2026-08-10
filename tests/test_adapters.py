@@ -16,7 +16,6 @@ import io
 from typing import Any
 
 import pytest
-from joserfc.errors import JoseError
 
 from massingbill.errors import AdapterUnavailableError
 from massingbill.optional import ADAPTER_MODULES
@@ -25,11 +24,22 @@ from massingbill.services.storage.base import StoragePointer
 
 pytestmark = pytest.mark.adapter
 
-boto3 = pytest.importorskip("boto3")
-requires_authlib = pytest.mark.skipif(
-    pytest.importorskip("authlib", reason="OIDC extra not installed") is None,
-    reason="OIDC extra not installed",
+# Skip on whether the *adapter module imports*, not on whether its library is
+# installed. Those are two different conditions and CI meets both: the main test
+# job installs `.[dev]` without the extras, and the no-adapters job deletes the
+# adapter files while the extras stay installed. Importing the adapter itself is
+# the only check that covers each -- and a collection error here would turn "this
+# deployment does not have the extra" into a build failure, which is the exact
+# opposite of what the standalone design claims.
+s3_module = pytest.importorskip(
+    "massingbill.services.storage.s3", reason="the s3 adapter is not installed"
 )
+oidc_module = pytest.importorskip(
+    "massingbill.services.identity.oidc", reason="the oidc adapter is not installed"
+)
+joserfc_errors = pytest.importorskip("joserfc.errors")
+
+JoseError = joserfc_errors.JoseError
 
 
 # ── The seam itself ─────────────────────────────────────────────────────────

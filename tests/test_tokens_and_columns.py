@@ -98,21 +98,28 @@ def test_utcnow_is_timezone_aware() -> None:
 # ── Adapter absence ─────────────────────────────────────────────────────────
 
 
-def test_an_oidc_provider_must_be_configured_not_merely_named() -> None:
-    """These two used to assert "OIDC is not built yet". It is built now, so
-    they assert the thing that is still true and still worth pinning: naming a
-    provider is not the same as configuring one, and a half-configured issuer
-    must fail loudly at startup rather than at somebody's first sign-in.
+#: What "asked for an adapter and did not get one" looks like, in either world.
+#:
+#: These two used to assert "OIDC and S3 are not built yet". They are built now,
+#: so they assert the thing that is still true: naming an adapter is not the
+#: same as configuring one, and it must fail at startup rather than at
+#: somebody's first sign-in or first upload.
+#:
+#: Both outcomes have to be accepted because the suite genuinely runs in both
+#: worlds -- the no-adapters CI job deletes these modules and re-runs
+#: everything, and there the same call correctly raises AdapterUnavailableError
+#: instead. Pinning only one of them makes this test a report on which CI job
+#: is running.
+NOT_CONFIGURED = (AdapterUnavailableError, ValueError, TypeError)
 
-    The genuinely-not-installed path is covered in ``test_adapters.py``, which
-    forces the ImportError rather than relying on the file being absent.
-    """
-    with pytest.raises((ValueError, TypeError)):
+
+def test_an_oidc_provider_must_be_configured_not_merely_named() -> None:
+    with pytest.raises(NOT_CONFIGURED):
         get_identity_provider("google")
 
 
-def test_s3_storage_needs_a_bucket() -> None:
-    with pytest.raises(ValueError, match="bucket"):
+def test_s3_storage_must_be_configured_not_merely_selected() -> None:
+    with pytest.raises(NOT_CONFIGURED):
         get_backend("s3", bucket="")
 
 

@@ -228,6 +228,25 @@ forbidden_modules = [
     "massingbill.services.storage.massing_vault",
     "massingbill.services.integrations",
 ]
+# The factories themselves. `get_backend("s3")` imports the adapter *inside the
+# function*, which is the sanctioned mechanism -- but import-linter is static
+# and counts a function-local import as an edge like any other.
+#
+# This contract was passing vacuously until the adapters were written: you
+# cannot resolve an edge to a module that does not exist. So the exception is
+# declared here, and the property it was meant to guarantee is asserted at
+# runtime instead by `test_no_core_module_imports_an_adapter`, which imports
+# the whole core in a subprocess and checks that no adapter reached
+# `sys.modules`. That test measures laziness; this contract cannot.
+#
+# Only the adapters that exist. import-linter treats an ignore that matches
+# nothing as an error, which is the right behaviour -- it is what stops a stale
+# exception outliving the thing it excused. The massing_cloud and massing_vault
+# entries belong here too, and go in when P9 writes them.
+ignore_imports = [
+    "massingbill.services.storage -> massingbill.services.storage.s3",
+    "massingbill.services.identity -> massingbill.services.identity.oidc",
+]
 
 [[tool.importlinter.contracts]]
 name = "Adapter bases never import their implementations"

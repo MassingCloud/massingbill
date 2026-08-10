@@ -19,10 +19,19 @@ from massingbill.extensions import db
 from massingbill.models import Role
 from massingbill.services import application as app_service
 from massingbill.services import sov as sov_service
-from massingbill.services.integrations.exports import ExportTarget, export
 from tests.factories import add_balanced_lines, make_tenant
 
 pytestmark = pytest.mark.adapter
+
+# The no-adapters CI job empties ``services/integrations/`` and re-runs the
+# whole suite. Importing the package at module scope makes that job fail on a
+# collection error rather than prove the thing it exists to prove.
+exports = pytest.importorskip(
+    "massingbill.services.integrations.exports",
+    reason="the integrations package is not installed",
+)
+ExportTarget = exports.ExportTarget
+export = exports.export
 
 
 @pytest.fixture
