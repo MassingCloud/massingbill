@@ -224,7 +224,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install ".[dev,render,oidc,s3]"
+      - run: pip install ".[dev,render,oidc,s3,massing]"
       - name: The adapter suite must be green
         # Fails rather than skips when nothing matched, so a marker typo cannot
         # turn this job into a green no-op.

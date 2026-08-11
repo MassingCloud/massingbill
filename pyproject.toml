@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "massingbill"
-version = "1.1.0"
+version = "1.2.0"
 description = "Standalone AIA-style GC billing engine: G702/G703, schedule of values, change orders, retainage, lien waivers and the monthly requisition."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -75,6 +75,10 @@ render = ["WeasyPrint>=61.0", "openpyxl>=3.1"]
 # of the parent removes it out from under you.
 oidc = ["Authlib>=1.3,<2.0", "joserfc>=1.0", "requests>=2.31"]
 s3 = ["boto3>=1.34"]
+# massing.cloud entitlements and vault storage (P9). HTTP only -- massing.cloud
+# is a WordPress storefront, so there is no Python package to depend on and
+# never will be.
+massing = ["requests>=2.31"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.1",
@@ -213,9 +217,11 @@ module = [
 ]
 ignore_missing_imports = true
 
-# The optional adapters do not exist yet -- they ship in P9/P10, and the lazy
-# imports that reference them are guarded by ImportError handlers on purpose
-# (SPEC.md 3.2). Their absence is the design, not a missing file.
+# The optional adapters. They exist now, but a deployment that has not
+# installed the matching extra will not have them on disk -- and the
+# `no-adapters` CI job deletes them outright. The lazy imports referencing them
+# are guarded by ImportError handlers on purpose (SPEC.md 3.2), so "missing" is
+# a supported state rather than a broken one.
 [[tool.mypy.overrides]]
 module = [
     "massingbill.services.entitlement.massing_cloud",
@@ -264,11 +270,13 @@ forbidden_modules = [
 #
 # Only the adapters that exist. import-linter treats an ignore that matches
 # nothing as an error, which is the right behaviour -- it is what stops a stale
-# exception outliving the thing it excused. The massing_cloud and massing_vault
-# entries belong here too, and go in when P9 writes them.
+# exception outliving the thing it excused. The last two arrived with P9, and
+# the contract broke the moment their modules did, exactly as it should have.
 ignore_imports = [
     "massingbill.services.storage -> massingbill.services.storage.s3",
     "massingbill.services.identity -> massingbill.services.identity.oidc",
+    "massingbill.services.storage -> massingbill.services.storage.massing_vault",
+    "massingbill.services.entitlement -> massingbill.services.entitlement.massing_cloud",
 ]
 
 [[tool.importlinter.contracts]]

@@ -6,6 +6,53 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-08-11
+
+### Added — P9, the massing.cloud adapters
+
+- `services/entitlement/massing_cloud.py`: entitlements, plan limits and seat
+  claims from massing.cloud. The field names already matched (SPEC.md 3.1), so
+  the mapping is a read rather than a translation.
+- `services/storage/massing_vault.py`: documents in the massing vault. Writes
+  are digest-verified on the way out *and* the way back, because a document
+  store is durable but not immutable and a signed lien waiver whose bytes
+  changed is the case worth catching.
+- Both are optional adapters. The `no-adapters` CI job deletes them along with
+  S3, OIDC and the integrations, and the whole suite still passes.
+
+**A network failure must not stop a contractor billing**, and most of the tests
+exist to hold that line. An outage serves the last good entitlement for a week;
+past that it degrades to **read-only rather than denied**, because refusing
+outright would make our outage look like their lapsed subscription. An
+unreachable seat service **grants the seat** — locking a project manager out of
+a pay application on the 25th because we could not reach a counter makes our
+problem theirs.
+
+Not blocked on the tier decision after all: the capability flag *names* are
+settled (`gc_billing`, `billing_projects`, `billing_apps_per_month`,
+`sub_tier_billing`, `esign`, `custom_forms`), and which tier grants them lives
+in massing's `class-tiers.php`, not in this adapter.
+
+### Added — getting statutory content in
+
+- `services/statutory.py` and `massingbill statutory status|export|import`.
+  Exports a worksheet of every unverified waiver form and deadline rule, with
+  citations, and reads the filled sheet back.
+
+The refusal to invent statutory text stands and is not negotiable. But a
+refusal that leaves somebody clicking through six hundred screens is one they
+will route around, so this makes entering it a spreadsheet and an import. The
+asymmetry is enforced: **nothing here can produce statutory content**, only move
+what a person supplied. Every exported cell is empty with no placeholder, a
+blank row is skipped rather than read as an answer, a day count without a
+citation is refused, and rows belonging to another tenant are ignored.
+
+### Fixed
+
+- The import contract's `ignore_imports` gained the two massing adapters. It
+  broke the moment their modules existed, which is exactly what a contract that
+  had been passing vacuously should do.
+
 ## [1.1.0] — 2026-08-10
 
 ### Added — a dependency-free core

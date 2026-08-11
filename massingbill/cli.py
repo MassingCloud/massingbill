@@ -261,6 +261,94 @@ def _tieout_sweep(args: argparse.Namespace) -> int:
     return 1
 
 
+def _statutory_status(args: argparse.Namespace) -> int:
+    """How much statutory content is still unverified."""
+    from massingbill import create_app
+    from massingbill.services import statutory
+
+    app = create_app()
+    with app.app_context():
+        waivers, deadlines = statutory.outstanding(args.organization)
+
+    print(f"{waivers} lien-waiver form(s) and {deadlines} deadline rule(s) unverified.")
+    if waivers or deadlines:
+        print(
+            "\nThese ship empty on purpose and refuse to render or compute until\n"
+            "somebody reads the statute and enters them. Export a worksheet with:\n"
+            f"  massingbill statutory export --organization {args.organization} "
+            "--out statutory.csv"
+        )
+    return 0
+
+
+def _statutory_export(args: argparse.Namespace) -> int:
+    """Write a worksheet of everything outstanding, with citations."""
+    from pathlib import Path
+
+    from massingbill import create_app
+    from massingbill.services import statutory
+
+    app = create_app()
+    with app.app_context():
+        content = statutory.export_worksheet(args.organization, state=args.state)
+
+    rows = content.count("\r\n") - 1
+    if args.out:
+        Path(args.out).write_text(content, encoding="utf-8")
+        print(f"Wrote {rows} outstanding item(s) to {args.out}.")
+        print(
+            "\nFill the `verbatim_text` column for waivers and the `days` column for\n"
+            "deadlines, from the statute named in `citation`. Leave a row blank to\n"
+            "skip it. Then:\n"
+            f"  massingbill statutory import {args.out} --organization {args.organization}"
+        )
+    else:
+        print(content, end="")
+    return 0
+
+
+def _statutory_import(args: argparse.Namespace) -> int:
+    """Read a filled worksheet back, verifying each row that has content."""
+    from pathlib import Path
+
+    from massingbill import create_app
+    from massingbill.extensions import db
+    from massingbill.services import statutory
+
+    source = Path(args.worksheet)
+    if not source.exists():
+        print(f"No such file: {source}", file=sys.stderr)
+        return 1
+
+    app = create_app()
+    with app.app_context():
+        try:
+            result = statutory.import_worksheet(
+                args.organization, source.read_text(encoding="utf-8")
+            )
+            summary = result.describe()
+            problems = list(result.errors or [])
+            db.session.commit()
+        except Exception as exc:  # noqa: BLE001 - report cleanly, do not traceback
+            db.session.rollback()
+            print(f"Could not import the worksheet: {exc}", file=sys.stderr)
+            return 1
+
+    print(summary)
+    for problem in problems:
+        print(f"  {problem}", file=sys.stderr)
+
+    if problems:
+        return 1
+
+    print(
+        "\nVerified entries render and compute from now on. Check them against the\n"
+        "statute once more before you rely on them -- this tool moved your text,\n"
+        "it did not check it."
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="massingbill", description="Massing Bill CLI")
     parser.add_argument("--version", action="version", version=f"massingbill {__version__}")
@@ -306,6 +394,23 @@ def main(argv: list[str] | None = None) -> int:
     drain = hook_sub.add_parser("drain", help="Send every delivery that is due")
     drain.add_argument("--limit", type=int, default=100)
 
+    statutory_parser = sub.add_parser(
+        "statutory", help="Enter the statutory text and deadlines that ship empty"
+    )
+    statutory_sub = statutory_parser.add_subparsers(dest="statutory_command")
+
+    status = statutory_sub.add_parser("status", help="How much is still unverified")
+    status.add_argument("--organization", required=True)
+
+    export = statutory_sub.add_parser("export", help="Write a worksheet of what is outstanding")
+    export.add_argument("--organization", required=True)
+    export.add_argument("--state", default=None, help="Limit to one two-letter state code")
+    export.add_argument("--out", default="", help="Write here instead of to stdout")
+
+    import_parser = statutory_sub.add_parser("import", help="Read a filled worksheet back")
+    import_parser.add_argument("worksheet")
+    import_parser.add_argument("--organization", required=True)
+
     admin = sub.add_parser("create-admin", help="Create the first user and organization")
     admin.add_argument("--email", required=True)
     admin.add_argument("--organization", required=True, help="Company name")
@@ -342,6 +447,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.webhooks_command == "drain":
             return _webhooks_drain(args)
         hook_parser.print_help()
+        return 1
+    if args.command == "statutory":
+        if args.statutory_command == "status":
+            return _statutory_status(args)
+        if args.statutory_command == "export":
+            return _statutory_export(args)
+        if args.statutory_command == "import":
+            return _statutory_import(args)
+        statutory_parser.print_help()
         return 1
     if args.command == "audit":
         if args.audit_command == "verify":

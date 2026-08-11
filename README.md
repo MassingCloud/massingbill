@@ -72,16 +72,17 @@ tie-out rule set; the G702/G703 layout is one of several renderers over it.
 
 ## Status
 
-**v1.0.0 — every phase is built and tested.** A ten-period golden project with
-hand-computed G702 headers reproduces every figure exactly, every period passes
-tie-out, and the [published demo](https://massingcloud.github.io/massingbill/)
-is that same engine's real output.
+**v1.2.0 — every phase is built and tested, P9 included.** A ten-period golden
+project with hand-computed G702 headers reproduces every figure exactly, every
+period passes tie-out, and the
+[published demo](https://massingcloud.github.io/massingbill/) is that same
+engine's real output.
 
-[`CHANGELOG.md`](CHANGELOG.md) records what 1.0 is *and what it is not* — the
-known limits are listed there rather than left to be discovered. The short
-version: statutory waiver text and deadline day counts ship empty and refuse
-until you enter them, ERP integration is file-based rather than API, and no
-external penetration test has been run.
+[`CHANGELOG.md`](CHANGELOG.md) records what each release is *and what it is
+not* — the known limits are listed there rather than left to be discovered. The
+short version: statutory waiver text and deadline day counts ship empty and
+refuse until you enter them (see below), ERP integration is file-based rather
+than API, and no external penetration test has been run.
 
 See [`SPEC.md`](SPEC.md) for the full plan and the phase-by-phase acceptance
 criteria, [`docs/competitive-upgrades.md`](docs/competitive-upgrades.md) for the
@@ -102,7 +103,8 @@ this back into massing.cloud actually requires.
 | P7a | REST API, API keys, webhooks, OpenAPI 3.1, Python SDK | **done** |
 | P7b | OIDC, S3, and file-based ERP / portal exports | **done** |
 | P8 | Ops runbook, security posture, **v1.0.0** | **done** |
-| P9–P10 | *Optional, post-1.0:* massing.cloud adapter, WordPress bridge | |
+| P9 | massing.cloud entitlements, seats and vault storage | **done** |
+| P10 | *Optional:* WordPress bridge — gated on the tier decision in [`SPEC.md` §14](SPEC.md) | |
 
 ## Development
 
@@ -228,6 +230,31 @@ without either: `MASSINGBILL_SECRET_KEY` (signs sessions) and
 `MASSINGBILL_ENCRYPTION_KEY` (encrypts TOTP seeds and integration tokens at
 rest). They are separate on purpose — rotating a session key must not lock every
 user out of two-factor. Generate a value for each with `massingbill gen-secret`.
+
+## Statutory content ships empty
+
+Prescribed lien-waiver forms have empty bodies and every deadline rule has no
+day count. Both **refuse** until a person reads the statute and enters them: a
+waiver that does not substantially conform can be unenforceable, and a mechanics
+lien filed one day late is simply gone.
+
+That is not a gap to be filled in later. It is the design, and there is no
+override.
+
+Entering it is a spreadsheet, not six hundred screens:
+
+```bash
+massingbill statutory export --organization <id> --out statutory.csv
+```
+
+Fill `verbatim_text` for waivers and `days` plus `citation` for deadlines, then:
+
+```bash
+massingbill statutory import statutory.csv --organization <id>
+```
+
+Nothing in that path can produce statutory content — it only moves what you
+supplied. A blank row is skipped rather than read as an answer.
 
 ## A note on the AIA forms
 
