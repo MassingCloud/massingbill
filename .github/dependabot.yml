@@ -8,13 +8,36 @@ updates:
     groups:
       python-minor:
         update-types: ["minor", "patch"]
+    # Majors stay ungrouped on purpose: a major version of a runtime dependency
+    # deserves its own PR and its own read of the changelog.
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      # One PR for every action bump, majors included.
+      #
+      # Ungrouped, six of these arrived at once and *conflicted with each
+      # other*: four workflow files, and several PRs editing the same `uses:`
+      # lines, so merging any one made the next need a rebase. Three of six
+      # ended up applied by hand because serialising the rebases cost more than
+      # the review was worth.
+      #
+      # Action majors are near-always mechanical (`v4` → `v7` on
+      # actions/checkout changed nothing we call), so reviewing them together
+      # loses nothing and removes the conflict entirely.
+      actions:
+        patterns: ["*"]
 
   - package-ecosystem: docker
     directory: "/deploy"
     schedule:
       interval: weekly
+    groups:
+      docker:
+        patterns: ["*"]
+    # The base-image major bump (3.12 → 3.14) is exactly the case that must not
+    # be waved through: it changes the runtime the product ships on. The test
+    # matrix has to gain the version in the same commit, or CI is green about a
+    # Python no job exercises.
