@@ -123,6 +123,13 @@ def test_s3_storage_must_be_configured_not_merely_selected() -> None:
         get_backend("s3", bucket="")
 
 
-def test_requesting_the_vault_before_p9_explains_itself() -> None:
-    with pytest.raises(AdapterUnavailableError, match="pip install"):
-        get_backend("massing_vault")
+def test_the_vault_must_be_configured_not_merely_selected() -> None:
+    """P9 has shipped, so this asserts the thing that is still true: naming a
+    backend is not configuring one, and a half-configured vault must fail at
+    startup rather than at the first document somebody tries to store.
+
+    The genuinely-not-installed path is covered in ``test_adapters.py``, which
+    forces the ImportError rather than relying on a file being absent.
+    """
+    with pytest.raises(NOT_CONFIGURED):
+        get_backend("massing_vault", api_key="")
