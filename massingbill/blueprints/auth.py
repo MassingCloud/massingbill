@@ -6,6 +6,8 @@ from typing import Any
 
 from flask import (
     Blueprint,
+    abort,
+    current_app,
     flash,
     redirect,
     render_template,
@@ -16,6 +18,7 @@ from flask import (
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.wrappers import Response
 
+from massingbill.errors import AdapterUnavailableError
 from massingbill.extensions import db, limiter
 from massingbill.models import Role, User
 from massingbill.services import accounts, audit, mfa
@@ -296,3 +299,43 @@ def register_login_manager(login_manager: Any) -> None:
 
 
 __all__ = ["PENDING_MFA_KEY", "Role", "bp", "register_login_manager"]
+
+
+@bp.get("/massing/callback")
+def massing_callback() -> Any:
+    """Sign in a user handed across by the massing.cloud bridge.
+
+    Registered unconditionally but **404s unless a shared secret is
+    configured**, so a standalone install does not advertise an endpoint it
+    cannot honour and a scanner learns nothing from its existence.
+
+    Every failure ends the same way: one flash, one redirect to the sign-in
+    form. The reasons go to the log. Telling a caller whether the signature was
+    wrong, the link expired, or the account simply does not exist would be free
+    reconnaissance, and the three are indistinguishable from outside on purpose.
+    """
+    secret = current_app.config.get("MASSINGBILL_MASSING_SHARED_SECRET", "")
+    if not secret:
+        abort(404)
+
+    assertion = request.args.get("assertion", "")
+
+    try:
+        from massingbill.services import handoff as handoff_service
+
+        accepted = handoff_service.accept(assertion, secret=secret)
+        db.session.commit()
+    except AdapterUnavailableError:
+        # Configured but not installed. An operator problem, not a visitor's.
+        current_app.logger.error("massing handoff is configured but the adapter is not installed")
+        abort(404)
+    except Exception as exc:  # noqa: BLE001 - one answer for every failure
+        db.session.rollback()
+        current_app.logger.warning("massing handoff refused: %s", exc)
+        flash(handoff_service.REFUSAL, "error")
+        return redirect(url_for("auth.sign_in_form"))
+
+    login_user(accepted.user)
+    set_active_organization(accepted.organization.id)
+    flash(f"Signed in. {accepted.organization.name} is ready.", "success")
+    return redirect(url_for("projects.index"))

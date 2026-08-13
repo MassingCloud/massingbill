@@ -6,7 +6,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added — P10, half of the WordPress bridge
+### Added — P10, the WordPress bridge
 
 - `services/identity/massing_handoff.py`: verifies the short-lived HMAC-signed
   assertion the massing.cloud bridge mints. Standard library only — it is the
@@ -22,11 +22,25 @@ and verifies it here, because base64 padding and JSON escaping are exactly where
 two languages disagree quietly and the symptom would be an unexplainable
 sign-in loop.
 
-**Not finished: the Flask route at `/auth/massing/callback`.** The verifier is
-built and tested; turning a verified assertion into a session needs user
-provisioning, an organization-membership check and `jti` replay storage. That is
-security-critical work and it is not something to rush, so it is stated here
-rather than half-shipped.
+- `/auth/massing/callback`, `services/handoff.py` and the `spent_handoffs`
+  table complete the round trip: a WordPress user reaches a billing project.
+
+The route **404s unless a shared secret is configured**, so a standalone install
+does not advertise an endpoint it cannot honour and a scanner learns nothing
+from asking.
+
+Two decisions, both the conservative end of a real choice. **No account is ever
+created** — a valid assertion says massing.cloud believes this person is
+entitled, not "give this person a login", and auto-provisioning would turn one
+leaked secret into an account in every tenant rather than the ability to
+impersonate people who already exist. And **every refusal reads identically**:
+whether the signature failed, the link expired, or the account does not exist is
+indistinguishable from outside, with the reasons going to the log.
+
+Single use is enforced by the primary key, not by a check. Two simultaneous
+presentations of the same assertion both try to insert the same `jti` and the
+database decides; read-then-insert would let both through, which is exactly the
+race a replayed URL creates.
 
 ## [1.2.0] — 2026-08-11
 

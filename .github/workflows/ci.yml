@@ -203,6 +203,7 @@ jobs:
         run: |
           rm -f massingbill/services/entitlement/massing_cloud.py
           rm -f massingbill/services/identity/oidc.py
+          rm -f massingbill/services/identity/massing_handoff.py
           rm -f massingbill/services/storage/s3.py
           rm -f massingbill/services/storage/massing_vault.py
           rm -rf massingbill/services/integrations/*

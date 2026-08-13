@@ -280,6 +280,14 @@ ignore_imports = [
     "massingbill.services.identity -> massingbill.services.identity.oidc",
     "massingbill.services.storage -> massingbill.services.storage.massing_vault",
     "massingbill.services.entitlement -> massingbill.services.entitlement.massing_cloud",
+    # The handoff route. `blueprints.auth` imports the massing glue *inside*
+    # the view function, and only after checking that a shared secret is
+    # configured -- an unconfigured install 404s without ever naming the
+    # module. Same situation as the factories above: genuinely lazy, and
+    # invisible as such to static analysis. `test_no_core_module_imports_an
+    # _adapter` imports the whole core in a subprocess and would fail if this
+    # ever became eager, which is the check that actually holds the line.
+    "massingbill.blueprints.auth -> massingbill.services.handoff",
 ]
 
 [[tool.importlinter.contracts]]

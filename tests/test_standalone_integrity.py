@@ -164,3 +164,27 @@ def test_the_network_guard_actually_blocks(block_network: None) -> None:
 
     with pytest.raises(NetworkBlockedError):
         socket.socket().connect(("example.com", 80))
+
+
+def test_the_ci_job_deletes_every_declared_adapter() -> None:
+    """`optional.py` declares which modules are optional; the `no-adapters` CI
+    job deletes them by path. Those are two lists in two languages, and the
+    failure mode is silent: an adapter added to one and not the other makes the
+    job pass while never testing the thing it exists to test.
+
+    Checked here rather than trusted, because a green job that proves nothing is
+    worse than no job.
+    """
+    import re
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    deleted = {
+        path.replace("/", ".").removesuffix(".py")
+        for path in re.findall(r"rm -f (massingbill/services/\S+\.py)", workflow)
+    }
+
+    missing = sorted(_optional.ADAPTER_MODULES - deleted)
+    assert not missing, (
+        f"declared optional in optional.py but not deleted by the no-adapters job: {missing}"
+    )

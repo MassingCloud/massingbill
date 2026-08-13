@@ -56,6 +56,7 @@ from .deadline import (
     DeadlineKind,
     DeadlineRule,
 )
+from .handoff import SpentHandoff
 from .organization import (
     INTERNAL_ROLES,
     ROLE_LABELS,
@@ -149,6 +150,7 @@ __all__ = [
     "SoftDeleteMixin",
     "SovLine",
     "SovStatus",
+    "SpentHandoff",
     "StorageLocation",
     "StoredMaterial",
     "SubApplication",
