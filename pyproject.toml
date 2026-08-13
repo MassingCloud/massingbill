@@ -138,6 +138,7 @@ omit = [
     # counts as optional.
     "*/services/entitlement/massing_cloud.py",
     "*/services/identity/oidc.py",
+    "*/services/identity/massing_handoff.py",
     "*/services/storage/s3.py",
     "*/services/storage/massing_vault.py",
     "*/services/integrations/*",
@@ -226,6 +227,7 @@ ignore_missing_imports = true
 module = [
     "massingbill.services.entitlement.massing_cloud",
     "massingbill.services.identity.oidc",
+    "massingbill.services.identity.massing_handoff",
     "massingbill.services.storage.s3",
     "massingbill.services.storage.massing_vault",
 ]
@@ -253,6 +255,7 @@ source_modules = [
 forbidden_modules = [
     "massingbill.services.entitlement.massing_cloud",
     "massingbill.services.identity.oidc",
+    "massingbill.services.identity.massing_handoff",
     "massingbill.services.storage.s3",
     "massingbill.services.storage.massing_vault",
     "massingbill.services.integrations",

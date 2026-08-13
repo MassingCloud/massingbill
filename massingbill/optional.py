@@ -23,6 +23,7 @@ ADAPTER_MODULES = frozenset(
     {
         "massingbill.services.entitlement.massing_cloud",
         "massingbill.services.identity.oidc",
+        "massingbill.services.identity.massing_handoff",
         "massingbill.services.storage.s3",
         "massingbill.services.storage.massing_vault",
     }

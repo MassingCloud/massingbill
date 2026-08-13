@@ -6,6 +6,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — P10, half of the WordPress bridge
+
+- `services/identity/massing_handoff.py`: verifies the short-lived HMAC-signed
+  assertion the massing.cloud bridge mints. Standard library only — it is the
+  authentication boundary, and a dependency there is one more thing between a
+  contractor and their billing. An optional adapter like the rest.
+- The bridge plugin itself lives in the massingcloud repo as
+  `plugin/massing-billing`: it serves the three endpoints
+  `MassingCloudProvider` calls, and hands a signed-in WordPress user across.
+
+Eighteen tests, one per way somebody could arrive as a user they are not, so a
+regression names which door opened. One of them makes **PHP** mint the assertion
+and verifies it here, because base64 padding and JSON escaping are exactly where
+two languages disagree quietly and the symptom would be an unexplainable
+sign-in loop.
+
+**Not finished: the Flask route at `/auth/massing/callback`.** The verifier is
+built and tested; turning a verified assertion into a session needs user
+provisioning, an organization-membership check and `jti` replay storage. That is
+security-critical work and it is not something to rush, so it is stated here
+rather than half-shipped.
+
 ## [1.2.0] — 2026-08-11
 
 ### Added — P9, the massing.cloud adapters
