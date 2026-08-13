@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-08-13
+
 ### Added — P10, the WordPress bridge
 
 - `services/identity/massing_handoff.py`: verifies the short-lived HMAC-signed

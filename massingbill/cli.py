@@ -349,6 +349,35 @@ def _statutory_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handoff_prune(args: argparse.Namespace) -> int:
+    """Delete spent handoff records that can no longer matter.
+
+    The `spent_handoffs` table is what makes a signed sign-in link single-use.
+    Nothing else ever deletes from it, so without this it grows by one row per
+    sign-in forever -- small, but unbounded, and unbounded is the part that
+    eventually matters.
+
+    A record is worthless once no assertion it describes could still be valid
+    under any clock skew, which is an hour.
+    """
+    from massingbill import create_app
+    from massingbill.extensions import db
+    from massingbill.services import handoff
+
+    app = create_app()
+    with app.app_context():
+        try:
+            deleted = handoff.prune()
+            db.session.commit()
+        except Exception as exc:  # noqa: BLE001 - report cleanly, do not traceback
+            db.session.rollback()
+            print(f"Could not prune: {exc}", file=sys.stderr)
+            return 1
+
+    print(f"Pruned {deleted} spent handoff record(s).")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="massingbill", description="Massing Bill CLI")
     parser.add_argument("--version", action="version", version=f"massingbill {__version__}")
@@ -411,6 +440,10 @@ def main(argv: list[str] | None = None) -> int:
     import_parser.add_argument("worksheet")
     import_parser.add_argument("--organization", required=True)
 
+    handoff_parser = sub.add_parser("handoff", help="massing.cloud sign-in handoff housekeeping")
+    handoff_sub = handoff_parser.add_subparsers(dest="handoff_command")
+    handoff_sub.add_parser("prune", help="Delete spent sign-in records")
+
     admin = sub.add_parser("create-admin", help="Create the first user and organization")
     admin.add_argument("--email", required=True)
     admin.add_argument("--organization", required=True, help="Company name")
@@ -456,6 +489,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.statutory_command == "import":
             return _statutory_import(args)
         statutory_parser.print_help()
+        return 1
+    if args.command == "handoff":
+        if args.handoff_command == "prune":
+            return _handoff_prune(args)
+        handoff_parser.print_help()
         return 1
     if args.command == "audit":
         if args.audit_command == "verify":

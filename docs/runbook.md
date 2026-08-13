@@ -100,6 +100,11 @@ Both exit non-zero when there is something to look at, so cron reports them.
 
 # Which open periods will not submit, days before the deadline rather than at it.
 0 7 * * 1    docker compose exec -T app massingbill tieout sweep --organization <id>
+
+# Only if the massing.cloud bridge is configured. Spent sign-in records are
+# what make a handoff link single-use; nothing else deletes them, so without
+# this the table grows by one row per sign-in forever.
+40 3 * * *   docker compose exec -T app massingbill handoff prune
 ```
 
 ## 5. When something is wrong
@@ -146,6 +151,52 @@ dispute and the log is the answer.
 The container carries the WeasyPrint native stack. A hand-rolled install may
 not: `GET /api/massingbill/v1/status` lists the formats this deployment can
 actually produce. XLSX, CSV and JSON do not need it.
+
+## 5a. The massing.cloud bridge (optional)
+
+Off unless configured. A standalone install needs none of this and the sign-in
+endpoint returns **404** until a shared secret is set — deliberately, so an
+unconfigured deployment does not advertise something it cannot honour.
+
+Three variables, and the secret must match the one in the WordPress plugin:
+
+| Variable | Meaning |
+|---|---|
+| `MASSINGBILL_MASSING_BASE_URL` | Usually `https://massing.cloud` |
+| `MASSINGBILL_MASSING_SHARED_SECRET` | Signs the sign-in handoff. Must match `MASSING_BILLING_SHARED_SECRET` in `wp-config.php`. |
+| `MASSINGBILL_MASSING_API_KEY` | Read entitlements and claim seats. The same `mcds_…` key as every other Massing service. |
+
+Install `massingbill[massing]` for the entitlement and vault adapters. Without
+the extra they are simply absent, which is a supported state rather than a
+broken one.
+
+### When somebody cannot sign in through the bridge
+
+Every refusal shows the visitor the same message on purpose — telling a caller
+whether the signature failed, the link expired, or the account does not exist is
+free reconnaissance. **The reason is in the log**, at `WARNING`:
+
+```bash
+docker compose logs app | grep "massing handoff refused"
+```
+
+The usual causes, in the order they occur:
+
+- **`assertion rejected: bad signature`** — the two secrets differ.
+- **`assertion rejected: expired`** or `older than a redirect` — a link is good
+  for sixty seconds. If this happens routinely, the two servers' clocks disagree
+  by more than the 30-second tolerance.
+- **`has already been used`** — someone reloaded the handoff URL, or a browser
+  prefetched it. Links are single-use; go back to massing.cloud and click again.
+- **`no account for …`** — deliberate. The bridge never creates accounts. Invite
+  the person in Massing Bill first, then the link works.
+- **`… is not a member of …`** — the account exists but is in a different
+  organization from the one the assertion names.
+
+### If the endpoint 404s
+
+The secret is not set. Check `massingbill check`, and remember an empty string
+counts as unset.
 
 ## 6. Rotating the encryption key
 

@@ -290,3 +290,38 @@ def test_statutory_with_no_subcommand_prints_help(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert cli_main(["statutory"]) == 1
+
+
+def test_handoff_prune_deletes_only_stale_records(
+    tmp_path: object, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`prune()` existed with no caller for one commit, which meant the table
+    grew by one row per sign-in forever. This is the caller."""
+    from datetime import timedelta
+
+    monkeypatch.chdir(tmp_path)  # type: ignore[arg-type]
+    monkeypatch.setenv("MASSINGBILL_DATABASE_URL", f"sqlite:///{tmp_path}/mb.sqlite")  # type: ignore[str-bytes-safe]
+
+    from massingbill import create_app
+    from massingbill.extensions import db
+    from massingbill.models import SpentHandoff
+    from massingbill.models.base import utcnow
+
+    app = create_app()
+    with app.app_context():
+        db.create_all()
+        db.session.add(SpentHandoff(jti="stale", used_at=utcnow() - timedelta(days=1)))
+        db.session.add(SpentHandoff(jti="recent", used_at=utcnow()))
+        db.session.commit()
+
+    assert cli_main(["handoff", "prune"]) == 0
+    assert "Pruned 1" in capsys.readouterr().out
+
+    with app.app_context():
+        remaining = [row.jti for row in db.session.query(SpentHandoff).all()]
+
+    assert remaining == ["recent"], "a live record was deleted"
+
+
+def test_handoff_with_no_subcommand_prints_help(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli_main(["handoff"]) == 1
