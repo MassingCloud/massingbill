@@ -6,6 +6,60 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-08-13
+
+Security fixes to the massing.cloud handoff shipped in 1.3.0, found by
+reviewing that release rather than by a report. **Anyone running 1.3.0 with the
+bridge configured should upgrade.**
+
+### Fixed — authentication
+
+- **A handoff no longer bypasses two-factor.** The callback signed users in
+  directly, so a user with TOTP enrolled was authenticated without it. A
+  handoff now authenticates one factor and the user is sent to the same
+  `/auth/mfa` challenge the password route uses.
+
+  The assertion carries no `acr`, `amr` or AAL claim, so there is nothing in it
+  on which to conclude a second factor was used, and
+  [NIST SP 800-63C](https://pages.nist.gov/800-63-4/sp800-63c.html) is explicit
+  that a relying party does not assume an assurance level that was never
+  asserted. If massing.cloud later asserts `amr`
+  ([RFC 8176](https://www.rfc-editor.org/rfc/rfc8176.html)), that claim becomes
+  the basis for skipping the local challenge.
+
+- **Locked and deactivated accounts can no longer sign in through the bridge.**
+  That policy lived inside `attempt_sign_in`, so the handoff re-implemented user
+  resolution without it. It is now `accounts.sign_in_blocker()` and every entry
+  point consults it.
+
+- The organization named in an assertion is carried across the MFA challenge.
+  `_finish_login` otherwise selects the *first* membership, so a user in two
+  organizations would verify their code and land in the wrong tenant.
+
+- `next` is validated before redirect. An unvalidated `next` on a successful
+  sign-in is a phishing primitive: the link genuinely is this application.
+  Pre-existing rather than introduced by the bridge.
+
+- The handoff callback now carries the same rate limit as every other
+  authentication route.
+
+### Fixed — adapters
+
+- `MassingVaultStorage.put` treated a `204 No Content` response as a failed
+  write, so callers would retry a write that had already succeeded.
+- `MassingCloudProvider` re-attempted the network on every call during an
+  outage. A 30-second failure cooldown means an outage costs one timeout rather
+  than one per call; a test asserts the cooldown lifts, so a brief outage does
+  not become a permanent one.
+- `massing_handoff.verify` raised `TypeError` rather than `HandoffError` on a
+  non-ASCII signature, because `hmac.compare_digest` refuses non-ASCII `str`.
+- `AdapterUnavailableError` was unreachable: `accept()` raised a bare
+  `ImportError`, so an operator who configured the bridge without installing
+  `massingbill[massing]` saw "your link is not valid" rather than the reason.
+
+Every security fix has a test that fails without it, verified by reverting each
+fix in turn.
+
 ## [1.3.0] — 2026-08-13
 
 ### Added — P10, the WordPress bridge

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "massingbill"
-version = "1.3.0"
+version = "1.3.1"
 description = "Standalone AIA-style GC billing engine: G702/G703, schedule of values, change orders, retainage, lien waivers and the monthly requisition."
 readme = "README.md"
 requires-python = ">=3.11"
