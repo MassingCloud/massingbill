@@ -40,17 +40,46 @@ PENDING_MFA_KEY = "pending_mfa_user_id"
 GENERIC_SIGN_IN_ERROR = "Those credentials are not valid."
 
 
+#: The organization a pending MFA challenge should land in.
+#:
+#: A handoff names the organization the user came from, and that is not
+#: necessarily their first membership. Without carrying it across the MFA
+#: challenge, a user in two organizations verifies their code and arrives in
+#: the wrong tenant.
+PENDING_ORG_KEY = "pending_organization_id"
+
+
+def _safe_next(candidate: str | None) -> str | None:
+    """A ``next`` target, or ``None`` if it is not somewhere on this site.
+
+    ``request.args["next"]`` is attacker-supplied and was being handed straight
+    to ``redirect()``. A sign-in page that will forward to any URL is a
+    phishing primitive: the link genuinely is this application, and the
+    redirect happens after a real, successful login.
+    """
+    if not candidate:
+        return None
+    # Relative, single-slash, no scheme. `//evil.example` is protocol-relative
+    # and would leave the site, so it is rejected along with `https://…`.
+    if candidate.startswith("/") and not candidate.startswith("//") and "\\" not in candidate:
+        return candidate
+    return None
+
+
 def _first_membership_or_none(user: User) -> str | None:
     memberships = accounts.memberships_for(user)
     return memberships[0].organization_id if memberships else None
 
 
-def _finish_login(user: User, remember: bool = False) -> Response:
+def _finish_login(
+    user: User, remember: bool = False, organization_id: str | None = None
+) -> Response:
     accounts.complete_sign_in(user)
     login_user(user, remember=remember)
     session.pop(PENDING_MFA_KEY, None)
+    session.pop(PENDING_ORG_KEY, None)
 
-    organization_id = _first_membership_or_none(user)
+    organization_id = organization_id or _first_membership_or_none(user)
     if organization_id:
         set_active_organization(organization_id)
         audit.record(
@@ -62,7 +91,7 @@ def _finish_login(user: User, remember: bool = False) -> Response:
             actor_label=user.email,
         )
     db.session.commit()
-    return redirect(request.args.get("next") or url_for("projects.index"))
+    return redirect(_safe_next(request.args.get("next")) or url_for("projects.index"))
 
 
 @bp.get("/register")
@@ -179,7 +208,7 @@ def mfa_verify() -> Any:
         flash("That code is not valid.", "error")
         return render_template("auth/mfa.html", form=form), 401
 
-    return _finish_login(user)
+    return _finish_login(user, organization_id=session.get(PENDING_ORG_KEY))
 
 
 @bp.post("/sign-out")
@@ -298,10 +327,11 @@ def register_login_manager(login_manager: Any) -> None:
         return user if user is not None and user.is_active else None
 
 
-__all__ = ["PENDING_MFA_KEY", "Role", "bp", "register_login_manager"]
+__all__ = ["PENDING_MFA_KEY", "PENDING_ORG_KEY", "Role", "bp", "register_login_manager"]
 
 
 @bp.get("/massing/callback")
+@limiter.limit("20 per hour")
 def massing_callback() -> Any:
     """Sign in a user handed across by the massing.cloud bridge.
 
@@ -313,6 +343,14 @@ def massing_callback() -> Any:
     form. The reasons go to the log. Telling a caller whether the signature was
     wrong, the link expired, or the account simply does not exist would be free
     reconnaissance, and the three are indistinguishable from outside on purpose.
+
+    **A handoff authenticates one factor.** The assertion carries no ``acr``,
+    ``amr`` or AAL claim, so there is nothing in it on which to conclude a
+    second factor was used, and NIST SP 800-63C is explicit that a relying party
+    does not assume an assurance level that was never asserted. A user with TOTP
+    enrolled is therefore sent to the same ``/auth/mfa`` challenge the password
+    route uses. If massing.cloud ever asserts ``amr`` (RFC 8176), that claim --
+    not this comment -- becomes the basis for skipping it.
     """
     secret = current_app.config.get("MASSINGBILL_MASSING_SHARED_SECRET", "")
     if not secret:
@@ -335,7 +373,13 @@ def massing_callback() -> Any:
         flash(handoff_service.REFUSAL, "error")
         return redirect(url_for("auth.sign_in_form"))
 
-    login_user(accepted.user)
-    set_active_organization(accepted.organization.id)
+    if accepted.needs_mfa:
+        # First factor only. Same challenge, same code path, same rate limit as
+        # a password sign-in -- a compromised bridge gets past one factor, not
+        # both.
+        session[PENDING_MFA_KEY] = accepted.user.id
+        session[PENDING_ORG_KEY] = accepted.organization.id
+        return redirect(url_for("auth.mfa_form"))
+
     flash(f"Signed in. {accepted.organization.name} is ready.", "success")
-    return redirect(url_for("projects.index"))
+    return _finish_login(accepted.user, organization_id=accepted.organization.id)

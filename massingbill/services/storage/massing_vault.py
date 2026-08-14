@@ -28,6 +28,18 @@ from massingbill.services.storage.base import StorageBackend, StoragePointer
 REQUEST_TIMEOUT = 30.0
 
 
+def _reported_digest(response: object) -> str:
+    """The digest the vault claims it stored, or "" when it said nothing."""
+    try:
+        payload = response.json()  # type: ignore[attr-defined]
+    except ValueError:
+        return ""
+
+    if not isinstance(payload, dict):
+        return ""
+    return str(payload.get("sha256", ""))
+
+
 class MassingVaultStorage(StorageBackend):
     name = "massing_vault"
 
@@ -73,7 +85,12 @@ class MassingVaultStorage(StorageBackend):
         # that silently transformed the bytes -- re-encoding, stripping, adding
         # a header -- has stored a different document from the one that was
         # signed, and only the digest would ever say so.
-        reported = str(dict(response.json() or {}).get("sha256", "")) or digest
+        #
+        # A body-less success (204 No Content, which is a perfectly ordinary
+        # answer to a PUT) reports nothing, and reporting nothing is not the
+        # same as disagreeing. Treated as agreement rather than raising on a
+        # write that in fact succeeded.
+        reported = _reported_digest(response) or digest
         if reported != digest:
             raise ValueError(
                 f"The vault stored {full_key} with a different digest than was sent. "

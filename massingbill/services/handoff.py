@@ -27,6 +27,7 @@ from datetime import timedelta
 
 from sqlalchemy.exc import IntegrityError
 
+from massingbill.errors import AdapterUnavailableError
 from massingbill.extensions import db
 from massingbill.models import Membership, Organization, SpentHandoff, User
 from massingbill.models.base import utcnow
@@ -50,10 +51,11 @@ class HandoffRejectedError(Exception):
 
 @dataclass(frozen=True)
 class Accepted:
-    """Who to sign in, and where."""
+    """Who to sign in, where, and whether a second factor is still owed."""
 
     user: User
     organization: Organization
+    needs_mfa: bool = False
 
 
 def accept(assertion: str, *, secret: str) -> Accepted:
@@ -61,7 +63,15 @@ def accept(assertion: str, *, secret: str) -> Accepted:
 
     Raises :class:`HandoffRejectedError` for every failure.
     """
-    from massingbill.services.identity import massing_handoff
+    try:
+        from massingbill.services.identity import massing_handoff
+    except ImportError as exc:
+        # Configured but not installed. An operator problem with a different
+        # answer from "your link is bad", so it gets its own exception type.
+        raise AdapterUnavailableError(
+            "The massing.cloud handoff is configured but its adapter is not "
+            "installed. Install it with: pip install 'massingbill[massing]'"
+        ) from exc
 
     try:
         verified = massing_handoff.verify(assertion, secret=secret)
@@ -90,6 +100,12 @@ def accept(assertion: str, *, secret: str) -> Accepted:
             f"{verified.claim.email!r} is not a member of {organization.id!r}"
         )
 
+    blocked = accounts.sign_in_blocker(user)
+    if blocked is not None:
+        # A lockout the password path enforces must not be walkable around by
+        # arriving through the bridge instead.
+        raise HandoffRejectedError(f"{user.email!r} cannot sign in: {blocked}")
+
     audit.record(
         organization.id,
         "auth.handoff_accepted",
@@ -100,7 +116,12 @@ def accept(assertion: str, *, secret: str) -> Accepted:
         actor_label=user.email,
     )
 
-    return Accepted(user=user, organization=organization)
+    # A handoff authenticates ONE factor. The assertion carries no acr, amr or
+    # AAL claim (NIST SP 800-63C section 5; RFC 8176), so there is nothing in it
+    # on which to conclude that a second factor was used -- and an RP may not
+    # assume an assurance level that was never asserted. If this user has
+    # enrolled TOTP, the caller must still challenge for it.
+    return Accepted(user=user, organization=organization, needs_mfa=bool(user.mfa_enabled))
 
 
 def _spend(jti: str) -> None:

@@ -271,3 +271,11 @@ def test_an_assertion_minted_by_php_verifies_here(tmp_path) -> None:
     # out; a decode that guessed latin-1 on this side would go unnoticed until
     # a contractor called Jos\u00e9 could not sign in.
     assert verified.claim.name == UNICODE_NAME
+
+
+def test_a_non_ascii_signature_is_a_handoff_error_not_a_typeerror() -> None:
+    """`hmac.compare_digest` raises TypeError rather than returning False when a
+    str argument is not ASCII, and the signature half is attacker-controlled.
+    The module's contract is that every failure is a HandoffError."""
+    with pytest.raises(handoff.HandoffError, match="non-ASCII"):
+        handoff.verify("cGF5bG9hZA.sïgnature", secret=SECRET)

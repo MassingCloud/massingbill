@@ -45,6 +45,14 @@ CACHE_SECONDS = 300
 #: Deliberately long: a week of outage should not stop the monthly requisition.
 GRACE_SECONDS = 7 * 24 * 60 * 60
 
+#: How long to stop trying after a failure.
+#:
+#: Without this, every call during an outage pays ``REQUEST_TIMEOUT`` again
+#: before returning the same cached answer it already had -- five seconds added
+#: to every page load, for as long as the outage lasts. Serving the cached
+#: entitlement is the point; paying for the network each time to do it is not.
+RETRY_AFTER_FAILURE_SECONDS = 30
+
 #: The capability flags massing's `class-tiers.php` grants. Named here rather
 #: than discovered, so a typo on either side is visible instead of silently
 #: reading as "not granted".
@@ -89,6 +97,9 @@ class MassingCloudProvider(EntitlementProvider):
         self.base_url = base_url.rstrip("/")
         self.instance = instance
         self._cache: dict[str, _Cached] = {}
+        #: When the last fetch failed, per organization. Read before deciding
+        #: whether it is worth trying the network again.
+        self._failed_at: dict[str, float] = {}
 
     # ── Reading ─────────────────────────────────────────────────────────────
 
@@ -100,11 +111,19 @@ class MassingCloudProvider(EntitlementProvider):
         if cached is not None and cached.fresh(now):
             return cached.entitlement
 
+        failed_at = self._failed_at.get(organization_id)
+        if failed_at is not None and now - failed_at < RETRY_AFTER_FAILURE_SECONDS:
+            # Still in the cooldown from a recent failure. Answer from what we
+            # have rather than making every caller wait for the same timeout.
+            return self._fallback(cached, now)
+
         try:
             entitlement = self._fetch(organization_id)
         except (requests.RequestException, ValueError, KeyError):
+            self._failed_at[organization_id] = now
             return self._fallback(cached, now)
 
+        self._failed_at.pop(organization_id, None)
         self._cache[organization_id] = _Cached(entitlement, now)
         return entitlement
 

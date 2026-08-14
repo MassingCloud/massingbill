@@ -207,6 +207,22 @@ def memberships_for(user: User) -> list[Membership]:
 # ── Sign-in ─────────────────────────────────────────────────────────────────
 
 
+def sign_in_blocker(user: User) -> SignInOutcome | None:
+    """Why this account may not start a session, or ``None`` if it may.
+
+    Every authentication path must consult this, not just the password one.
+    It lives here rather than inside :func:`attempt_sign_in` because the
+    massing.cloud handoff re-implemented user resolution without it and
+    silently let locked accounts through -- a policy encoded in one caller is a
+    policy the next caller forgets.
+    """
+    if user.is_locked:
+        return SignInOutcome.LOCKED
+    if not user.is_active:
+        return SignInOutcome.INACTIVE
+    return None
+
+
 def attempt_sign_in(email: str, password: str) -> SignInResult:
     """Verify a password and report what should happen next.
 
@@ -227,8 +243,13 @@ def attempt_sign_in(email: str, password: str) -> SignInResult:
         _register_failure(user)
         return SignInResult(SignInOutcome.BAD_CREDENTIALS, user)
 
-    if not user.is_active:
-        return SignInResult(SignInOutcome.INACTIVE, user)
+    # Checked after the password so an attacker cannot probe which accounts
+    # are disabled without knowing the password. `sign_in_blocker` is the
+    # shared statement of the same policy; this ordering is why it is called
+    # here rather than at the top.
+    blocked = sign_in_blocker(user)
+    if blocked is not None:
+        return SignInResult(blocked, user)
 
     # Correct password: clear the counter whatever happens with MFA next.
     user.failed_login_count = 0

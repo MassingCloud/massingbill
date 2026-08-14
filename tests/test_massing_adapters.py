@@ -352,3 +352,74 @@ def test_the_vault_never_hands_back_a_url(monkeypatch: pytest.MonkeyPatch) -> No
 
     for value in (pointer.key, pointer.backend, pointer.content_type):
         assert "http" not in value.lower()
+
+
+# ── Regressions from the review ─────────────────────────────────────────────
+
+
+def test_a_body_less_vault_write_is_a_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """204 No Content is an ordinary answer to a PUT. Reporting nothing is not
+    the same as disagreeing about the digest, and treating it as a failure
+    would make the caller retry a write that already succeeded."""
+    import io
+
+    class NoBody:
+        status_code = 204
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> Any:
+            raise ValueError("No JSON object could be decoded")
+
+    vault = MassingVaultStorage.__new__(MassingVaultStorage)
+    vault.api_key = "k"
+    vault.base_url = "https://vault.example"
+    vault.prefix = "massingbill"
+    monkeypatch.setattr(vault_module.requests, "put", lambda *a, **k: NoBody())
+
+    pointer = vault.put("app.pdf", io.BytesIO(b"%PDF"), content_type="application/pdf")
+
+    assert pointer.sha256
+
+
+def test_an_outage_is_not_a_retry_storm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without a failure cooldown, every call during an outage pays the full
+    request timeout again before returning the same cached answer -- which,
+    once entitlements are read per request, is five seconds added to every page
+    load for as long as the outage lasts."""
+    attempts = {"n": 0}
+
+    def unreachable(*args: Any, **kwargs: Any) -> Any:
+        attempts["n"] += 1
+        raise requests.ConnectionError("down")
+
+    provider = MassingCloudProvider(api_key="mcds_x")
+    monkeypatch.setattr(entitlement_module.requests, "get", unreachable)
+
+    for _ in range(5):
+        provider.effective("org-1")
+
+    assert attempts["n"] == 1, f"hit the network {attempts['n']} times during one outage"
+
+
+def test_the_cooldown_expires_so_recovery_is_noticed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cooldown that never lifts would turn a brief outage into a permanent
+    one from the application's point of view."""
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(entitlement_module.time, "monotonic", lambda: clock["t"])
+
+    provider = MassingCloudProvider(api_key="mcds_x")
+
+    def unreachable(*args: Any, **kwargs: Any) -> Any:
+        raise requests.ConnectionError("down")
+
+    monkeypatch.setattr(entitlement_module.requests, "get", unreachable)
+    provider.effective("org-1")
+
+    clock["t"] += entitlement_module.RETRY_AFTER_FAILURE_SECONDS + 1
+    monkeypatch.setattr(entitlement_module.requests, "get", lambda *a, **k: FakeResponse(ENTITLED))
+
+    assert provider.effective("org-1").entitled

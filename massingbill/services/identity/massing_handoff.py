@@ -68,6 +68,13 @@ def verify(assertion: str, *, secret: str, now: float | None = None) -> Handoff:
     if not payload or not signature:
         raise HandoffError("malformed assertion")
 
+    # `compare_digest` raises TypeError rather than returning False when a str
+    # argument is not ASCII, and the signature half is attacker-controlled. The
+    # module's contract is that every failure is a HandoffError, so the check
+    # happens here rather than surfacing a TypeError to the caller.
+    if not signature.isascii():
+        raise HandoffError("signature contains non-ASCII characters")
+
     expected = _b64encode(hmac.new(secret.encode(), payload.encode(), hashlib.sha256).digest())
 
     # Constant time. A comparison that returns early leaks the signature one

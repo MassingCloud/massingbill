@@ -170,6 +170,31 @@ Install `massingbill[massing]` for the entitlement and vault adapters. Without
 the extra they are simply absent, which is a supported state rather than a
 broken one.
 
+### A handoff is one factor, not two
+
+A user with TOTP enrolled is **still challenged** after arriving from
+massing.cloud. That is deliberate, not an oversight.
+
+The assertion carries no `acr`, `amr` or AAL claim, so there is nothing in it on
+which to conclude a second factor was used. [NIST SP 800-63C][63c] is explicit
+that a relying party establishes the assurance level it requires and the
+identity provider asserts what it achieved; an RP does not assume an assurance
+level that was never asserted. Skipping the local challenge would mean anyone
+holding the shared secret defeats two-factor for every enrolled user, which is
+exactly what those users enrolled to prevent.
+
+If massing.cloud later performs its own MFA and asserts it as `amr`
+([RFC 8176][8176]), that claim becomes the basis for skipping the local
+challenge. Until then the answer is a second prompt, and a double prompt is the
+correct trade against a silent downgrade.
+
+Locked and deactivated accounts are refused here for the same reason: the
+policy lives in `accounts.sign_in_blocker()` and every entry point consults it,
+so the bridge cannot become a way around a lockout.
+
+[63c]: https://pages.nist.gov/800-63-4/sp800-63c.html
+[8176]: https://www.rfc-editor.org/rfc/rfc8176.html
+
 ### When somebody cannot sign in through the bridge
 
 Every refusal shows the visitor the same message on purpose — telling a caller
@@ -192,6 +217,11 @@ The usual causes, in the order they occur:
   the person in Massing Bill first, then the link works.
 - **`… is not a member of …`** — the account exists but is in a different
   organization from the one the assertion names.
+- **`cannot sign in: locked`** or `: inactive` — the account is locked out or
+  deactivated. The bridge is not a way around either.
+- **`configured but its adapter is not installed`** (logged at ERROR, not
+  WARNING) — the secret is set but the deployment installed plain
+  `massingbill` rather than `massingbill[massing]`.
 
 ### If the endpoint 404s
 
