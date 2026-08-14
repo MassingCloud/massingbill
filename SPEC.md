@@ -1022,20 +1022,27 @@ where-things-live, and the exact command set.
 
 ### Open — nothing blocking
 
-Both remaining questions are **massing storefront decisions**, not engineering
-decisions. They gate **P9/P10 only** and can be answered any time in the next six
+One question remains. Both were **massing storefront decisions** rather than
+engineering ones, and they gated **P9/P10 only** and can be answered any time in the next six
 months. **P0 can start now.**
 
-1. **Entitlement placement** *(gates P9)*. `class-tiers.php` **already promises pay
-   apps** in the **Enterprise GC** tier (`AIA G702/G703 pay apps + e-signature`,
-   line 169), and the front page repeats it. So:
-   - **Option A:** bundle `gc_billing` into **Enterprise GC** only. Zero marketing
-     change, but a $9,999/mo floor that excludes every mid-size GC.
-   - **Option B (recommended):** Enterprise GC *and* **`addon:gc_billing`** on top
-     of Commercial ($999/mo) — honors the existing promise, opens the mid-market,
-     costs one entry in `class-tiers.php` and one line of copy.
-   - Either way the flags are `gc_billing`, `billing_projects`,
-     `billing_apps_per_month`, `sub_tier_billing`, `esign`, `custom_forms`.
+1. **Entitlement placement** — **DECIDED 2026-08-13: Option B.**
+   GC billing is included in **Enterprise GC**, and available on **Commercial**
+   as the `gc_billing` add-on ($249/mo). This honours the promise
+   `class-tiers.php` has been making since before anything implemented it,
+   without putting a $9,999/mo floor in front of every mid-size GC.
+
+   Implemented in massingcloud `plugin/massing-subscriptions`: the six flags on
+   the Enterprise tier, explicitly `false`/`0` on Commercial, and an add-on
+   whose `grants` mirror the Enterprise set. Massing Bill reads that catalog
+   rather than restating it, so nothing in this repo encodes the decision.
+
+   Flags: `gc_billing`, `billing_projects`, `billing_apps_per_month`,
+   `sub_tier_billing`, `esign`, `custom_forms`.
+
+   Still to do on the storefront side: the WooCommerce product for the add-on,
+   and a line of pricing copy.
+
 2. **Hosted offering** *(gates nothing yet)*. Since the engine is MIT and
    self-hostable, is the commercial product (a) massing.cloud tiers only,
    (b) a separately hosted Massing Bill SaaS, or (c) both? This shapes the P8

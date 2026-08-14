@@ -27,6 +27,9 @@ everything about it *looks* finished.
 open, waiver issue, form-style selection), then a decorator or service call at
 each. Read-only degradation is already modelled in `Entitlement.read_only`.
 
+**Unblocked as of 2026-08-13:** the tier decision is made and the flags exist,
+so there is now a real answer to enforce rather than an empty catalog.
+
 **Watch for:** the entitlement must not be consulted on every request without
 thought — see the negative-caching note in `massing_cloud.py`. And a standalone
 install must stay unlimited, which `StandaloneProvider` already does.
@@ -111,10 +114,12 @@ config flag, because it is a relaxation. See `docs/runbook.md` §5a.
 - **Branch protection on `main`.** One `gh api` call; blocked for me by the
   permission classifier. `main` is currently force-pushable and deletable.
 - **`@MassingCloud/maintainers`** — needs `admin:org`.
-- **The tier decision** (`SPEC.md` §14): Enterprise-only, or
-  `addon:gc_billing` on Commercial. Gates nothing in code — the bridge reads
-  `class-tiers.php` rather than restating it — but it gates the pricing page,
-  and item 1 above has nothing to enforce until it is made.
+- ~~**The tier decision**~~ — **decided 2026-08-13: Option B.** GC billing is
+  in Enterprise GC and available on Commercial as the `gc_billing` add-on. The
+  six flags are live in massingcloud's `class-tiers.php` and `class-addons.php`,
+  so **item 1 above is now unblocked** — there is something real to enforce.
+  Still outstanding on the storefront: the WooCommerce product for the add-on,
+  and a line of pricing copy.
 - **48 statutory waiver forms and every deadline rule.** They refuse rather
   than guess, by design. `massingbill statutory export` makes filling them a
   spreadsheet; the words must come from someone reading the statute.
