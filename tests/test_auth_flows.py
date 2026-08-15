@@ -335,3 +335,63 @@ def test_malformed_ciphertext_is_rejected(bad: str) -> None:
 def test_an_empty_key_is_refused() -> None:
     with pytest.raises(ValueError, match="must not be empty"):
         SecretBox("")
+
+
+# ── The session is renewed on privilege change ──────────────────────────────
+
+
+def test_signing_in_discards_the_pre_authentication_session(
+    client: FlaskClient, app: Flask
+) -> None:
+    """Nothing that existed before authentication survives it.
+
+    Flask's session is a signed cookie, so classic fixation does not apply --
+    an attacker who plants a cookie value cannot have it become authenticated,
+    because the server issues a new signed cookie carrying the user id. What
+    this pins is the other half: `login_user` adds to the existing dict rather
+    than replacing it, so without the clear, a key an attacker got into the
+    pre-authentication session would be carried into the authenticated one.
+    """
+    tenant = make_tenant("acme")
+    db.session.commit()
+
+    with client.session_transaction() as pre:
+        pre["planted_by_an_attacker"] = "still here?"
+
+    sign_in(client, tenant.user(Role.OWNER))
+
+    with client.session_transaction() as post:
+        assert "planted_by_an_attacker" not in post
+        assert post.get("_user_id"), "but the sign-in itself still worked"
+
+
+def test_the_mfa_challenge_still_lands_in_the_asserted_organization(
+    client: FlaskClient, app: Flask
+) -> None:
+    """The session is cleared inside `_finish_login`, so anything the challenge
+    needs has to be read before the call rather than after. If that ordering
+    ever inverts, a user in two organizations verifies their code and arrives
+    in whichever one happens to be first."""
+    tenant = make_tenant("acme")
+    user = tenant.user(Role.PM)
+    secret, _ = mfa.begin_enrolment(user)
+    mfa.confirm_enrolment(user, secret, pyotp.TOTP(secret).now())
+    db.session.commit()
+
+    challenged = client.post(
+        "/auth/sign-in",
+        data={"email": user.email, "password": PASSWORD},
+        follow_redirects=False,
+    )
+    assert challenged.headers["Location"].endswith("/auth/mfa"), (
+        "should be challenged, not signed in"
+    )
+
+    verified = client.post(
+        "/auth/mfa",
+        data={"code": pyotp.TOTP(secret).now()},
+        follow_redirects=True,
+    )
+
+    assert verified.status_code == 200
+    assert tenant.organization.name.encode() in verified.data

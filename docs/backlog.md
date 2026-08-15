@@ -78,18 +78,25 @@ free, forever. Right now there is nothing for them to use.
 flow, a narrow portal that can see only their own subcontract, and waiver
 signing. The RBAC model already has an external-role concept to build on.
 
-## 3. Session fixation — *confirmed*
+## 3. ~~Session fixation~~ — **done 2026-08-15**
 
-`login_user()` is called without rotating the session identifier, on **both**
-the password path and the handoff. An attacker who can set a victim's session
-cookie before sign-in keeps a valid session afterwards.
+`_finish_login` now clears the session before `login_user()`, so nothing that
+existed before authentication survives it. One line, on all three paths —
+password, MFA challenge, and the massing.cloud handoff, which share it.
 
-Pre-existing rather than introduced by the bridge, and lower severity than it
-sounds given `SameSite=Lax` and `Secure` cookies — but it is a one-line fix in
-`_finish_login` and there is no argument for leaving it.
+Worth correcting the original entry, which overstated the exposure. Flask's
+session is a **signed cookie**, so classic fixation does not apply: an attacker
+who plants a cookie value cannot have it become authenticated, because the
+server issues a *new* signed cookie carrying the user id and the attacker's copy
+does not have it. The real gap was the other half — `login_user` adds to the
+existing dict rather than replacing it, so any key an attacker got into the
+pre-authentication session was carried into the authenticated one. That is
+session poisoning rather than fixation, and clearing fixes it either way.
 
-**What it needs:** clear and re-issue the session on privilege change, taking
-care not to lose `PENDING_MFA_KEY`/`PENDING_ORG_KEY` at the wrong moment.
+The ordering the old entry warned about held: every caller reads
+`PENDING_MFA_KEY`/`PENDING_ORG_KEY` before calling, and passes what it needs as
+an argument. A test pins the MFA challenge landing in the right organization so
+that stays true.
 
 ## 4. No load test, no external penetration test
 

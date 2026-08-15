@@ -75,9 +75,24 @@ def _finish_login(
     user: User, remember: bool = False, organization_id: str | None = None
 ) -> Response:
     accounts.complete_sign_in(user)
+
+    # Renew the session on privilege change. Every caller has already read what
+    # it needs out of the old one -- the pending-MFA keys are passed in as
+    # arguments, not read from here -- so nothing that existed before
+    # authentication survives it.
+    #
+    # Worth being precise about what this does and does not fix. Flask's session
+    # is a signed cookie, so classic fixation does not apply: an attacker who
+    # plants a cookie value cannot have it become authenticated, because the
+    # server issues a *new* signed cookie carrying the user id and the attacker's
+    # copy does not have it. What this stops is the other half -- `login_user`
+    # adds to the existing dict rather than replacing it, so any key an attacker
+    # got into the pre-authentication session would otherwise be carried into the
+    # authenticated one. Clearing first is the standard control and costs a CSRF
+    # token that Flask-WTF reissues on the next form.
+    session.clear()
+
     login_user(user, remember=remember)
-    session.pop(PENDING_MFA_KEY, None)
-    session.pop(PENDING_ORG_KEY, None)
 
     organization_id = organization_id or _first_membership_or_none(user)
     if organization_id:

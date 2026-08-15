@@ -30,6 +30,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   degrades to read-only; exports and documents keep working and nothing is
   deleted. See `docs/runbook.md` §5a.
 
+### Fixed — authentication
+
+- **The session is now renewed on privilege change.** `_finish_login` clears the
+  session before `login_user()`, on all three paths — password, MFA challenge
+  and the massing.cloud handoff, which share it.
+
+  Narrower than "session fixation" suggests, and worth stating precisely.
+  Flask's session is a signed cookie, so an attacker who plants a cookie value
+  cannot have it become authenticated: the server issues a *new* signed cookie
+  carrying the user id, and the attacker's copy does not have it. The actual
+  gap was that `login_user` adds to the existing dict rather than replacing it,
+  so any key an attacker got into the pre-authentication session was carried
+  into the authenticated one. Clearing first is the standard control and costs
+  a CSRF token that Flask-WTF reissues on the next form.
+
 ### Changed
 
 - The entitlement provider is consulted **once per organization per request**,
