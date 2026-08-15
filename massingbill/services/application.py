@@ -45,7 +45,7 @@ from massingbill.models import (
     User,
 )
 from massingbill.models.base import utcnow
-from massingbill.services import audit, events, retainage
+from massingbill.services import audit, events, limits, retainage
 from massingbill.services import sov as sov_service
 from massingbill.services.money import Cents, cents
 
@@ -123,6 +123,37 @@ def get_line(application: Application, line_id: str) -> ApplicationLine:
 # ── Opening a period ────────────────────────────────────────────────────────
 
 
+def _opened_this_month(organization_id: str) -> int:
+    """Applications opened in the current UTC month, across every contract.
+
+    Counts voided ones. A monthly allowance is a rate limit on the operation,
+    not a stock of live documents -- opening and voiding all month would
+    otherwise be unlimited. Deliberately *not* keyed on ``period_start``: a
+    customer may legitimately open a period that bills an earlier month, and
+    that is not the thing being metered.
+
+    The boundary is made naive on purpose. ``created_at`` is a plain ``DateTime``
+    filled by ``server_default=func.now()``, so it holds whatever the database
+    server's clock said, without an offset -- unlike the columns that use
+    ``UtcDateTime``. Comparing an aware value against it would have psycopg send
+    a ``timestamptz`` for Postgres to cast into the session timezone, shifting
+    the month boundary by hours with nothing to show for it. Both sides naive
+    means both sides are the same clock, whichever clock that is.
+    """
+    start = utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    return int(
+        db.session.scalar(
+            select(func.count())
+            .select_from(Application)
+            .where(
+                Application.organization_id == organization_id,
+                Application.created_at >= start,
+            )
+        )
+        or 0
+    )
+
+
 def open_period(
     contract: PrimeContract,
     *,
@@ -132,6 +163,15 @@ def open_period(
     actor: User | None = None,
 ) -> Application:
     """Start the next requisition."""
+    organization_id = contract.organization_id
+    limits.require(limits.GC_BILLING, organization_id, what="GC billing")
+    limits.require_within(
+        limits.BILLING_APPS_PER_MONTH,
+        _opened_this_month(organization_id),
+        organization_id,
+        what="pay applications a month",
+    )
+
     schedule = sov_service.approved_schedule(contract)
     if schedule is None:
         raise ConflictError(

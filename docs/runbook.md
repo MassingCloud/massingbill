@@ -228,6 +228,40 @@ The usual causes, in the order they occur:
 The secret is not set. Check `massingbill check`, and remember an empty string
 counts as unset.
 
+### "Your plan does not include …"
+
+A **409**, from the entitlement provider rather than from the data. It means
+massing.cloud says this customer is not entitled to the operation, so the answer
+is on the storefront, not here.
+
+| Message | Operation | Flag |
+|---|---|---|
+| does not include GC billing | creating a project, opening a period | `gc_billing` |
+| allows *n* projects | creating a project | `billing_projects` |
+| allows *n* pay applications a month | opening a period | `billing_apps_per_month` |
+| does not include subcontractor billing | recording a subcontract | `sub_tier_billing` |
+| does not include electronic signature | signing a waiver | `esign` |
+
+"Your subscription has lapsed, so this deployment is read-only" is the same 409
+with `entitled: false`. **Nothing is deleted and nothing is hidden** — every
+export, document and report still works. Renewing restores writes on the next
+request; there is no re-sync step.
+
+**A standalone install can never see any of this.** `StandaloneProvider` grants
+everything, and an absent limit means unlimited rather than zero. If one of
+these appears on a self-hosted deployment, the entitlement provider has been
+switched away from the default — check `massingbill check`.
+
+If a limit looks wrong, read it at the source rather than guessing:
+
+```bash
+docker compose exec app massingbill check
+```
+
+The tier catalog on massing.cloud is authoritative; this deployment only reads
+it. A customer who has just upgraded sees it on their next request — the
+entitlement is cached for the life of one request, not longer.
+
 ## 6. Rotating the encryption key
 
 There is no automatic rotation, deliberately — a half-rotated database is worse

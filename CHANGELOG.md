@@ -6,6 +6,37 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Entitlements are now enforced.** The provider has been constructed at
+  startup since 1.2.0 and nothing ever asked it, so every capability flag
+  decided nothing. `massingbill/services/limits.py` is now the one module that
+  asks, and five flags have call sites: `gc_billing` and `billing_projects` at
+  project creation, `gc_billing` and `billing_apps_per_month` at
+  `open_period`, `sub_tier_billing` at `subcontracts.create`, and `esign` at
+  `waivers.sign`.
+
+  `custom_forms` deliberately has none: nothing can set
+  `PrimeContract.default_form_style`, so a gate there would guard an operation
+  that does not exist — which reads as covered without being so.
+
+  **A standalone install is unaffected**, and that is the first thing
+  `tests/test_limits.py` asserts. An absent limit means *unlimited*, not zero,
+  so the permissive default holds by construction rather than by special case.
+  No licence, no phone-home, no kill switch (SPEC.md §3.3) is unchanged.
+
+  Refusals are `409` with the limit, the cap and the current count in
+  `details`, so an API client can say something useful. A lapsed subscription
+  degrades to read-only; exports and documents keep working and nothing is
+  deleted. See `docs/runbook.md` §5a.
+
+### Changed
+
+- The entitlement provider is consulted **once per organization per request**,
+  cached on `g` above the adapter's own TTL cache. Pinned by a test that counts
+  calls, because a page with two gates was otherwise two round trips for an
+  answer that cannot change in between.
+
 ## [1.3.1] — 2026-08-13
 
 Security fixes to the massing.cloud handoff shipped in 1.3.0, found by

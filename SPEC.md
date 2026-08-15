@@ -454,6 +454,13 @@ an operator *chooses* `massing_cloud`, and even then it degrades exactly as
 `docs/11` §8 specifies — `on-hold` → read-only grace, financial records never
 deleted.
 
+The gates themselves live in `massingbill/services/limits.py`, which is the only
+module that asks — so the answer to "what is gated?" is a grep for
+`limits.require` rather than a reading of every blueprint. An absent limit means
+*unlimited*, not zero, so the standalone default is the permissive one by
+construction rather than by remembering to special-case it. `tests/test_limits.py`
+asserts that before it asserts anything else.
+
 This also **removes the last blocker from P0**: the tier/add-on placement question
 is now a massing storefront decision that can be made any time before the optional
 integration phase, and it blocks nothing.

@@ -25,7 +25,7 @@ from massingbill.models import (
     User,
 )
 from massingbill.models.base import utcnow
-from massingbill.services import audit
+from massingbill.services import audit, limits
 from massingbill.services.money import Bp, Cents, apply_bp, bp, cents
 
 
@@ -42,6 +42,12 @@ def create(
     contact_email: str = "",
     actor: User | None = None,
 ) -> Subcontract:
+    limits.require(
+        limits.SUB_TIER_BILLING,
+        project.organization_id,
+        what="subcontractor billing",
+    )
+
     duplicate = db.session.scalar(
         select(Subcontract).where(
             Subcontract.project_id == project.id, Subcontract.number == number

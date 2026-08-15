@@ -6,7 +6,7 @@ from typing import Any
 
 from flask import Blueprint, abort, flash, redirect, render_template, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from massingbill.errors import ConflictError
 from massingbill.extensions import db
@@ -19,7 +19,7 @@ from massingbill.models import (
     Role,
     User,
 )
-from massingbill.services import accounts, audit
+from massingbill.services import accounts, audit, limits
 from massingbill.services import sov as sov_service
 from massingbill.services.rbac import (
     AUDIT_READ,
@@ -74,6 +74,19 @@ def create() -> Any:
         return render_template("projects/edit.html", form=form, project=None), 400
 
     organization_id = require_organization_id()
+
+    limits.require(limits.GC_BILLING, organization_id, what="GC billing")
+    limits.require_within(
+        limits.BILLING_PROJECTS,
+        db.session.scalar(
+            select(func.count())
+            .select_from(Project)
+            .where(Project.organization_id == organization_id)
+        )
+        or 0,
+        organization_id,
+        what="projects",
+    )
 
     duplicate = db.session.scalar(scoped(Project).where(Project.number == form.number.data))
     if duplicate is not None:

@@ -9,30 +9,61 @@ says "confirmed", I checked rather than assumed.
 
 ---
 
-## 1. Entitlements are built but never enforced — *confirmed*
+## 1. ~~Entitlements are built but never enforced~~ — **done 2026-08-15**
 
-`app.extensions["massingbill_entitlement"]` is constructed at startup and
-**nothing ever calls it**. No `.effective()`, no `.allows()`, no `.within()`
-anywhere outside the adapter's own tests.
+`massingbill/services/limits.py` is now the single place that asks, so "where
+are we gated?" is a grep for `limits.require`. Five of the six flags have a call
+site:
 
-So `gc_billing`, `billing_projects`, `billing_apps_per_month`, `sub_tier_billing`,
-`esign` and `custom_forms` currently decide nothing. The whole P9 adapter — the
-outage handling, the seat claims, the grace window — feeds a system with no
-consumers.
+| Flag | Enforced at |
+|---|---|
+| `gc_billing` | project creation, `application.open_period` |
+| `billing_projects` | project creation |
+| `billing_apps_per_month` | `application.open_period` |
+| `sub_tier_billing` | `subcontracts.create` |
+| `esign` | `waivers.sign` |
+| `custom_forms` | **nowhere — see below** |
 
-This is the largest functional gap in the product and the least visible, because
-everything about it *looks* finished.
+`custom_forms` has no call site because **nothing can set
+`PrimeContract.default_form_style`**. It is not on the contract form, and
+`application.open_period` is the only reader. So the flag would gate an
+operation that does not exist. It gets a gate when the field gets a UI; adding
+one now would be a check nobody can trigger, which is worse than an absent one
+because it reads as covered.
 
-**What it needs:** decide where each limit is checked (project creation, period
-open, waiver issue, form-style selection), then a decorator or service call at
-each. Read-only degradation is already modelled in `Entitlement.read_only`.
+Three decisions worth knowing:
 
-**Unblocked as of 2026-08-13:** the tier decision is made and the flags exist,
-so there is now a real answer to enforce rather than an empty catalog.
+- **Standalone is unaffected**, and that is asserted first in `test_limits.py`.
+  An absent limit means *unlimited*, not zero — the direction this has to fail
+  in — so every gate is a no-op unless an operator opted into a provider that
+  says otherwise. No licence, no phone-home, no kill switch still holds.
+- **The provider is asked once per organization per request**, cached on `g` on
+  top of the adapter's own TTL cache. Pinned by a test that counts calls.
+- **Gating is at the write points, not a `before_request` hook.** Blunter would
+  catch more, but it would also refuse things a lapsed customer must still be
+  able to do — signing out, exporting their own data.
 
-**Watch for:** the entitlement must not be consulted on every request without
-thought — see the negative-caching note in `massing_cloud.py`. And a standalone
-install must stay unlimited, which `StandaloneProvider` already does.
+**Still open:** `esign` is checked at signing rather than at issue, deliberately
+— a plan without it can still print the waiver and have it signed on paper.
+Whether that is the commercial intent is a pricing question, not a code one.
+
+## 1a. `created_at` is naive while everything newer is aware — *confirmed*
+
+`TimestampMixin.created_at` / `updated_at` are plain `DateTime` with
+`server_default=func.now()`, so they store whatever the database server's clock
+says, with no offset. Every timestamp added since uses the `UtcDateTime`
+decorator, whose docstring describes precisely the bug the old columns still
+have.
+
+Nothing is wrong today — a deployment whose database runs in UTC is consistent
+either way, and that is the documented setup. But any code comparing
+`created_at` against `utcnow()` has to remember to strip the tzinfo, which is
+the kind of thing that gets remembered once. `application._opened_this_month`
+does, with a comment saying why.
+
+**What it needs:** switch the mixin to `UtcDateTime` and a migration that
+rewrites the existing columns. Cheap in code, wide in blast radius — every
+table has these two columns — so it wants its own change and its own backup.
 
 ## 2. No subcontractor portal
 

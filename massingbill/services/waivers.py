@@ -46,7 +46,7 @@ from massingbill.models import (
     WaiverType,
 )
 from massingbill.models.base import utcnow
-from massingbill.services import audit, events
+from massingbill.services import audit, events, limits
 from massingbill.services.money import Cents, cents, to_display
 
 SEED_DIR = Path(__file__).resolve().parent.parent / "data" / "seed" / "waivers"
@@ -347,6 +347,11 @@ def sign(
     both are required: an unconsented signature is refused, and the digest of
     the rendered body is stored with it.
     """
+    # Gated at signing rather than at issue: a plan without e-signature can
+    # still produce the waiver and have it signed on paper, which is what those
+    # customers were doing before this existed.
+    limits.require(limits.ESIGN, waiver.organization_id, what="electronic signature")
+
     if waiver.status not in (WaiverStatus.DRAFT, WaiverStatus.REQUESTED):
         raise ConflictError(f"This waiver is {waiver.status} and cannot be signed again.")
 
