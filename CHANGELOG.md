@@ -30,6 +30,35 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   degrades to read-only; exports and documents keep working and nothing is
   deleted. See `docs/runbook.md` §5a.
 
+### Fixed — concurrency
+
+- **Losing a race to open a period is now a refusal, not a 500.** `open_period`
+  reads whether a period is open, decides not, computes `max(number) + 1` and
+  inserts. Two callers interleaved between the read and the insert both pass
+  the check and compute the same number.
+
+  The unique constraint on `(prime_contract_id, number)` always kept the
+  contract to one live period, so **no data was ever at risk**. What went wrong
+  was what the loser saw: an unhandled `IntegrityError`, and a 500, at the exact
+  moment two people are trying to bill. It is now the same `ConflictError` the
+  sequential path gives.
+
+  Found by `scripts/loadtest.py`, on its first run, with 7 of 8 workers
+  affected.
+
+### Added — testing
+
+- **`scripts/loadtest.py`** — a concurrency and throughput harness, and the
+  `concurrency-race` CI job that runs it against **Postgres** on every push.
+  The unit suite runs one session against one connection, so a
+  time-of-check/time-of-use gap is invisible there by construction; SQLite
+  cannot reproduce it either, because it serialises writers behind a single
+  lock.
+
+  Following the house pattern, the job also plants a regression — removing the
+  handler above — and fails if the harness does not notice. A concurrency test
+  that cannot fail reads as coverage without being any.
+
 ### Fixed — authentication
 
 - **The session is now renewed on privilege change.** `_finish_login` clears the

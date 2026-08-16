@@ -187,6 +187,90 @@ jobs:
           print(f"imported {imported} modules, booted, and served /healthz with no network")
           PY
 
+  concurrency-race:
+    name: Concurrency (two people, one button)
+    runs-on: ubuntu-latest
+    # The unit suite runs one session against one connection, so a
+    # time-of-check/time-of-use gap is invisible there by construction. This job
+    # is the only thing that opens one.
+    #
+    # Against Postgres rather than SQLite on purpose: SQLite takes a single
+    # write lock per database, so its writers are serialised by the engine and
+    # the contention this looks for never happens. The bug that prompted this
+    # job -- every loser of a race to open a period got an unhandled
+    # IntegrityError, so a 500 rather than a refusal -- happened to be visible
+    # on SQLite too. The next one might not be.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: loadtest
+          POSTGRES_DB: massingbill
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    env:
+      MASSINGBILL_DATABASE_URL: postgresql+psycopg://postgres:loadtest@localhost:5432/massingbill
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev,postgres]"
+
+      - name: Sixteen workers race to open the same period
+        run: python scripts/loadtest.py open --workers 16
+
+      - name: The harness must reject a planted regression
+        # A concurrency test that cannot fail is worse than none: it reads as
+        # coverage. This removes the IntegrityError handler the harness exists
+        # to protect and asserts the harness notices.
+        run: |
+          python - <<'PY'
+          import pathlib
+
+          path = pathlib.Path("massingbill/services/application.py")
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+
+          out = []
+          dropping = False
+          for line in lines:
+              if line.strip() == "try:" and out and out[-1].strip() == "db.session.add(application)":
+                  dropping = True
+                  out.append("    db.session.flush()\n")
+                  continue
+              if dropping:
+                  # Everything up to the next unindented-to-4 statement is the
+                  # handler being removed.
+                  if line.startswith("    for sov_line"):
+                      dropping = False
+                      out.append(line)
+                  continue
+              out.append(line)
+
+          assert not dropping, "never found the end of the handler"
+          new = "".join(out)
+          assert "IntegrityError as exc" not in new.split("def open_period")[1].split("def ")[0], (
+              "failed to remove the handler"
+          )
+          path.write_text(new, encoding="utf-8")
+          print("removed the race handler")
+          PY
+          if python scripts/loadtest.py open --workers 16; then
+            echo "the concurrency harness failed to notice an unhandled IntegrityError" >&2
+            exit 1
+          fi
+          git checkout -- massingbill/services/application.py
+          echo "harness correctly rejected the planted regression"
+
+      - name: Read throughput under eight concurrent readers
+        run: python scripts/loadtest.py read --workers 8 --seconds 5
+
   no-adapters:
     name: No adapters (delete and re-run)
     runs-on: ubuntu-latest

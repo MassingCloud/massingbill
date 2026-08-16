@@ -104,6 +104,36 @@ def test_only_one_period_may_be_open(tenant: Tenant) -> None:
         _open(tenant, month=2)
 
 
+def test_losing_a_race_to_open_is_a_refusal_not_a_crash(
+    tenant: Tenant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two people click "open period" at the same moment.
+
+    `open_period` reads whether one is open, decides not, computes max+1 and
+    inserts. Interleaved, both callers pass the check and compute the same
+    number; the unique constraint on (prime_contract_id, number) refuses the
+    second. That is the constraint working -- the contract keeps one live
+    period -- but the loser must see a refusal, not a 500.
+
+    Found by `scripts/loadtest.py open`, where 7 of 8 concurrent openers hit an
+    unhandled IntegrityError. Reproduced here by forcing the number collision
+    the race produces, because threads in a test suite buy flakiness rather
+    than confidence -- the harness is what exercises real concurrency.
+    """
+    first = _open(tenant, month=1)
+    _enter(first, [(0, 0), (0, 0), (0, 0)])
+    app_service.submit(first, actor=tenant.user(Role.OWNER))
+    db.session.commit()
+
+    # What the losing caller computed: a number that was free when it looked.
+    monkeypatch.setattr(app_service, "next_number", lambda contract: first.number)
+
+    with pytest.raises(ConflictError, match="opened by someone else"):
+        app_service.open_period(
+            tenant.contract, period_start=date(2026, 2, 1), period_end=date(2026, 2, 28)
+        )
+
+
 def test_periods_may_not_overlap(tenant: Tenant) -> None:
     first = _open(tenant, month=1)
     _enter(first, [(0, 0), (0, 0), (0, 0)])

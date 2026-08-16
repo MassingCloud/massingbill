@@ -116,6 +116,18 @@ rule with its citation. `massingbill tieout sweep` gives the same answer from
 the command line. **Do not look for an override — there isn't one, on purpose.**
 Fix the number, or void the period and open it again.
 
+### "Application #N was opened by someone else a moment ago"
+
+Two people clicked **open period** on the same contract within the same instant.
+One of them won; this is the other one. **Nothing is wrong and nothing was
+lost** — reload and the period is there, opened by a colleague.
+
+Worth knowing rather than escalating, because it looks like a bug and is the
+opposite: the database refused a second period on a contract that may only have
+one. If it happens *routinely* rather than at month-end crunch, two people are
+working the same contract and that is a scheduling conversation, not a support
+one.
+
 ### The audit chain fails verification
 
 ```bash

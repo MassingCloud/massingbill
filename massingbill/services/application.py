@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from massingbill.core import requisition
 from massingbill.errors import ConflictError, NotFoundError, ValidationError
@@ -132,15 +133,11 @@ def _opened_this_month(organization_id: str) -> int:
     customer may legitimately open a period that bills an earlier month, and
     that is not the thing being metered.
 
-    The boundary is made naive on purpose. ``created_at`` is a plain ``DateTime``
-    filled by ``server_default=func.now()``, so it holds whatever the database
-    server's clock said, without an offset -- unlike the columns that use
-    ``UtcDateTime``. Comparing an aware value against it would have psycopg send
-    a ``timestamptz`` for Postgres to cast into the session timezone, shifting
-    the month boundary by hours with nothing to show for it. Both sides naive
-    means both sides are the same clock, whichever clock that is.
+    The month boundary is UTC because ``created_at`` is UTC: ``models.base``
+    aliases ``DateTime`` to ``UtcDateTime``, so every timestamp in the schema is
+    stored and read back as aware UTC on both SQLite and Postgres.
     """
-    start = utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    start = utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return int(
         db.session.scalar(
             select(func.count())
@@ -213,7 +210,24 @@ def open_period(
         form_style=str(contract.default_form_style),
     )
     db.session.add(application)
-    db.session.flush()
+    try:
+        db.session.flush()
+    except IntegrityError as exc:
+        # Somebody opened the same period between the check above and this
+        # insert. `next_number` is max+1, so both callers computed the same
+        # number and the unique constraint on (prime_contract_id, number)
+        # refused the second -- which is the constraint doing its job and
+        # keeping the contract to one live period.
+        #
+        # What it must not do is reach the user as a 500. The answer is the same
+        # one the sequential path gives, because the same thing happened: an
+        # application is already open. `scripts/loadtest.py open` is what found
+        # this, and 7 of 8 concurrent openers hit it.
+        db.session.rollback()
+        raise ConflictError(
+            f"Application #{number} was opened by someone else a moment ago. "
+            "Reload to see it."
+        ) from exc
 
     for sov_line in schedule.lines:
         db.session.add(

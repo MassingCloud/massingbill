@@ -47,23 +47,29 @@ Three decisions worth knowing:
 — a plan without it can still print the waiver and have it signed on paper.
 Whether that is the commercial intent is a pricing question, not a code one.
 
-## 1a. `created_at` is naive while everything newer is aware — *confirmed*
+## 1a. ~~`created_at` is naive~~ — **withdrawn 2026-08-15, it was never true**
 
-`TimestampMixin.created_at` / `updated_at` are plain `DateTime` with
-`server_default=func.now()`, so they store whatever the database server's clock
-says, with no offset. Every timestamp added since uses the `UtcDateTime`
-decorator, whose docstring describes precisely the bug the old columns still
-have.
+Recorded because the mistake is instructive, not because there is work here.
 
-Nothing is wrong today — a deployment whose database runs in UTC is consistent
-either way, and that is the documented setup. But any code comparing
-`created_at` against `utcnow()` has to remember to strip the tzinfo, which is
-the kind of thing that gets remembered once. `application._opened_this_month`
-does, with a comment saying why.
+I read `TimestampMixin` using `DateTime` and concluded the columns were naive
+while newer ones used `UtcDateTime`. They are the same thing:
+[`models/base.py`](../massingbill/models/base.py) ends the decorator with
+`DateTime = UtcDateTime`, commented "named `DateTime` so a model reads normally
+and nobody has to remember the distinction". Every timestamp in the schema has
+always been aware UTC on both backends.
 
-**What it needs:** switch the mixin to `UtcDateTime` and a migration that
-rewrites the existing columns. Cheap in code, wide in blast radius — every
-table has these two columns — so it wants its own change and its own backup.
+The alias did its job — a model reads normally — and I still got it wrong by
+reading the mixin without reading the import. **Enumerating the metadata found
+zero naive datetime columns in seconds**; doing that first would have cost less
+than writing the entry.
+
+Worth keeping because a wrong "confirmed" item is more expensive than a missing
+one: it survives as received wisdom and gets planned around. The check is one
+command:
+
+```bash
+python -c "import massingbill.models; from massingbill.models.base import Base; from sqlalchemy import DateTime; print([(t.name, c.name) for t in Base.metadata.tables.values() for c in t.columns if isinstance(c.type, DateTime) and not c.type.timezone])"
+```
 
 ## 2. No subcontractor portal
 
@@ -98,16 +104,33 @@ The ordering the old entry warned about held: every caller reads
 an argument. A test pins the MFA challenge landing in the right organization so
 that stays true.
 
-## 4. No load test, no external penetration test
+## 4. ~~No load test~~ — **done 2026-08-15**. No external penetration test — *still true*
 
-Stated as a known limit in the 1.0.0 changelog and still true. The security
-posture in `docs/runbook.md` §7 describes what was *built*, not what an
-independent party has confirmed.
+`scripts/loadtest.py` runs two scenarios and exits non-zero on a broken
+invariant, and the `concurrency-race` CI job runs both against **Postgres** on
+every push — SQLite serialises writers behind a single lock, so it cannot
+reproduce the contention.
 
-**What it needs:** the load test is straightforward and worth doing first —
-concurrent period opens against one contract will exercise the SOV revision
-locking, which is the place a race would be expensive. The pen test is a
-purchase, not a task.
+**It found a real bug on its first run.** `open_period` reads whether a period
+is open, decides not, computes `max(number) + 1` and inserts. Interleaved, both
+callers pass the check and compute the same number. The unique constraint on
+`(prime_contract_id, number)` kept the contract to one live period — so no data
+was ever at risk — but **7 of 8 concurrent openers got an unhandled
+`IntegrityError`, which reaches the user as a 500** at the exact moment two
+people are trying to bill. Now a `ConflictError` saying somebody else just
+opened it. Fixed, with a deterministic regression test that fails without it.
+
+Numbers on the local SQLite run, for shape only: 1,664 reconciliations/second
+across 8 readers, median 4.1 ms, p95 11.4 ms. The reconciliation panel is the
+most expensive read in the product and the one every user hits every period.
+
+**Still outstanding: the external penetration test.** `docs/runbook.md` §7
+describes what was *built*, not what an independent party has confirmed. That
+is a purchase, not a task.
+
+**Worth extending next:** concurrent SOV revisions against one contract, and
+concurrent submit/certify on one application. Both are the same read-then-write
+shape and neither has been probed.
 
 ## 5. ERP integrations are file-based only
 
